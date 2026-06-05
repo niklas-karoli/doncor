@@ -1,49 +1,98 @@
 /**
  * DONCOR WINGS PTFS - Main Logic
- * Prepared for Supabase Integration
+ * Production-ready with Supabase Integration
  */
 
-// --- Supabase Mock / Placeholder Functions ---
-async function signUpWithDiscord() {
-    console.log("Supabase: Initiating Discord OAuth2 flow...");
-    // Future: const { data, error } = await supabase.auth.signInWithOAuth({ provider: 'discord' })
+// --- Supabase Configuration ---
+// TO THE USER: Replace these with your actual Supabase URL and Anon Key
+const supabaseUrl = 'YOUR_SUPABASE_URL';
+const supabaseKey = 'YOUR_SUPABASE_ANON_KEY';
+let dbClient = null;
 
-    // For now: Simulate a successful login
-    simulateLogin();
+// Initialize Supabase if the library is loaded
+if (typeof supabase !== 'undefined') {
+    // The CDN version exposes 'supabase' as the main object
+    if (supabase.createClient) {
+        dbClient = supabase.createClient(supabaseUrl, supabaseKey);
+    }
+}
+
+// --- Auth Functions ---
+async function signInWithDiscord() {
+    if (!dbClient) return;
+    console.log("Supabase: Initiating Discord OAuth2 flow...");
+
+    const { data, error } = await dbClient.auth.signInWithOAuth({
+        provider: 'discord',
+        options: {
+            redirectTo: window.location.origin + (window.location.pathname.includes('/discord/') ? '/discord/' : '/')
+        }
+    });
+
+    if (error) console.error("Login Error:", error.message);
+}
+
+async function handleLogout() {
+    if (!dbClient) return;
+    await dbClient.auth.signOut();
+    window.location.reload();
 }
 
 async function checkUserSession() {
-    console.log("Supabase: Checking active session...");
-    // Future: const { data: { session } } = await supabase.auth.getSession()
-    return null;
+    if (!dbClient) return;
+
+    const { data: { session }, error } = await dbClient.auth.getSession();
+
+    if (session) {
+        const user = session.user;
+        const discordName = user.user_metadata.full_name || user.user_metadata.custom_claims?.global_name || "Virtual Pilot";
+
+        // Fetch custom profile data from 'profiles' table
+        const { data: profile, error: profileError } = await dbClient
+            .from('profiles')
+            .select('mileage_points, status_points, tier_level')
+            .eq('id', user.id)
+            .single();
+
+        if (profile) {
+            updateAuthUI({
+                username: discordName,
+                tier: profile.tier_level || "White Wing",
+                miles: (profile.mileage_points || 0).toLocaleString()
+            });
+        } else {
+            // Fallback if profile trigger is still processing
+            updateAuthUI({
+                username: discordName,
+                tier: "White Wing",
+                miles: "0"
+            });
+        }
+    }
 }
 
 // --- UI Logic ---
-function simulateLogin() {
-    localStorage.setItem('doncor_mock_user', JSON.stringify({
-        username: "Capt_Roblox",
-        tier: "Bronze Aviator",
-        miles: "2,800"
-    }));
-    updateAuthUI();
-}
-
-function updateAuthUI() {
-    const user = JSON.parse(localStorage.getItem('doncor_mock_user'));
+function updateAuthUI(user) {
     const loginBtn = document.getElementById('login-btn');
     const userProfile = document.getElementById('user-profile');
 
     if (user && userProfile && loginBtn) {
         loginBtn.style.display = 'none';
         userProfile.style.display = 'flex';
-        document.getElementById('user-name').innerText = user.username;
-        document.getElementById('user-stats').innerText = `Tier: ${user.tier} | ${user.miles} Miles`;
-    }
-}
 
-function logout() {
-    localStorage.removeItem('doncor_mock_user');
-    window.location.reload();
+        const nameEl = document.getElementById('user-name');
+        const statsEl = document.getElementById('user-stats');
+
+        if (nameEl) nameEl.innerText = user.username;
+        if (statsEl) statsEl.innerText = `Tier: ${user.tier} | ${user.miles} Miles`;
+
+        // Apply dynamic tier coloring
+        userProfile.classList.remove('status-silver', 'status-gold', 'status-bronze');
+        const tierLower = user.tier.toLowerCase();
+        if (tierLower.includes('silver')) userProfile.classList.add('status-silver');
+        else if (tierLower.includes('gold')) userProfile.classList.add('status-gold');
+        else if (tierLower.includes('bronze')) userProfile.classList.add('status-bronze');
+    }
 }
 
 // --- Stats Animation ---
@@ -91,14 +140,14 @@ function initMobileMenu() {
 
 // --- Initialize ---
 document.addEventListener('DOMContentLoaded', () => {
-    updateAuthUI();
+    checkUserSession();
     initMobileMenu();
 
     const loginBtn = document.getElementById('login-btn');
     if (loginBtn) {
         loginBtn.addEventListener('click', (e) => {
             e.preventDefault();
-            signUpWithDiscord();
+            signInWithDiscord();
         });
     }
 
@@ -106,21 +155,21 @@ document.addEventListener('DOMContentLoaded', () => {
     if (userProfile) {
         userProfile.addEventListener('click', () => {
             if (confirm("Do you want to log out?")) {
-                logout();
+                handleLogout();
             }
         });
     }
 
     // Trigger stats animation if we are on the discord page
     if (document.querySelector('.stat-number')) {
-        // Simple Intersection Observer to start animation when visible
         const observer = new IntersectionObserver((entries) => {
             if (entries[0].isIntersecting) {
                 animateStats();
                 observer.disconnect();
             }
         });
-        observer.observe(document.querySelector('.stats-grid'));
+        const target = document.querySelector('.stats-grid');
+        if (target) observer.observe(target);
     }
 
     // Smooth Scrolling

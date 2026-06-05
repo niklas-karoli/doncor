@@ -193,7 +193,14 @@ nav ul li a:hover {
     width: 32px;
     height: 32px;
     border-radius: 50%;
+    border: 2px solid transparent;
+    transition: var(--transition);
 }
+
+/* Tier Specific UI Accents for Profile */
+.user-profile.status-bronze img { border-color: #cd7f32; }
+.user-profile.status-silver img { border-color: #c0c0c0; }
+.user-profile.status-gold img { border-color: var(--accent-yellow); box-shadow: 0 0 10px rgba(255, 200, 0, 0.3); }
 
 .user-info {
     display: flex;

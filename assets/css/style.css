@@ -202,6 +202,109 @@ nav ul li a:hover {
 .user-profile.status-silver img { border-color: #c0c0c0; }
 .user-profile.status-gold img { border-color: var(--accent-yellow); box-shadow: 0 0 10px rgba(255, 200, 0, 0.3); }
 
+/* Dropdown Menu Styles */
+.profile-area {
+    position: relative;
+}
+
+.user-dropdown-menu {
+    position: absolute;
+    top: calc(100% + 15px);
+    right: 0;
+    width: 240px;
+    background-color: var(--bg-section);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    box-shadow: 0 15px 35px rgba(0, 0, 0, 0.4);
+    z-index: 1100;
+    padding: 15px 0;
+    animation: slideDown 0.2s ease-out;
+}
+
+@keyframes slideDown {
+    from { opacity: 0; transform: translateY(-10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.dropdown-header {
+    padding: 10px 20px;
+    display: flex;
+    flex-direction: column;
+}
+
+.user-name-large {
+    font-weight: 700;
+    font-size: 1rem;
+    color: var(--white);
+    font-family: 'Montserrat', sans-serif;
+}
+
+.user-tier-badge {
+    font-size: 0.7rem;
+    color: var(--accent-yellow);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.dropdown-divider {
+    height: 1px;
+    background: rgba(255, 255, 255, 0.05);
+    margin: 10px 0;
+}
+
+.dropdown-info {
+    padding: 10px 20px;
+}
+
+.info-item {
+    display: flex;
+    flex-direction: column;
+}
+
+.info-item .label {
+    font-size: 0.65rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.info-item .value {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--white);
+}
+
+.dropdown-item {
+    width: 100%;
+    padding: 12px 20px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: var(--transition);
+    text-align: left;
+}
+
+.dropdown-item:hover {
+    background: rgba(255, 255, 255, 0.03);
+    color: var(--white);
+}
+
+.logout-btn {
+    color: #ff4d4d;
+}
+
+.logout-btn:hover {
+    background: rgba(255, 77, 77, 0.05);
+    color: #ff4d4d;
+}
+
 .user-info {
     display: flex;
     flex-direction: column;

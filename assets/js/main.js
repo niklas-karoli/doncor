@@ -5,8 +5,8 @@
 
 // --- Supabase Configuration ---
 // TO THE USER: Replace these with your actual Supabase URL and Anon Key
-const supabaseUrl = 'YOUR_SUPABASE_URL';
-const supabaseKey = 'YOUR_SUPABASE_ANON_KEY';
+const supabaseUrl = 'https://cqybjgwbehmjpeecqkbq.supabase.co';
+const supabaseKey = 'sb_publishable_8jrQCtGf-KaQR1s7avn4ew_RJcuBSfz';
 let dbClient = null;
 
 // Initialize Supabase if the library is loaded

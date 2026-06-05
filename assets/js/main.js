@@ -5,27 +5,34 @@
 
 // --- Supabase Configuration ---
 // TO THE USER: Replace these with your actual Supabase URL and Anon Key
-const supabaseUrl = 'https://cqybjgwbehmjpeecqkbq.supabase.co';
-const supabaseKey = 'sb_publishable_8jrQCtGf-KaQR1s7avn4ew_RJcuBSfz';
+const supabaseUrl = 'YOUR_SUPABASE_URL';
+const supabaseKey = 'YOUR_SUPABASE_ANON_PUBLISHABLE_KEY';
 let dbClient = null;
+
+// Persistent state for the current user to avoid parsing the DOM
+let currentUserState = {
+    username: '',
+    tier: '',
+    miles: '0',
+    avatar: ''
+};
 
 // Initialize Supabase if the library is loaded
 if (typeof supabase !== 'undefined') {
-    // The CDN version exposes 'supabase' as the main object
-    if (supabase.createClient) {
-        dbClient = supabase.createClient(supabaseUrl, supabaseKey);
-    }
+    dbClient = supabase.createClient(supabaseUrl, supabaseKey);
 }
 
 // --- Auth Functions ---
 async function signInWithDiscord() {
-    if (!dbClient) return;
-    console.log("Supabase: Initiating Discord OAuth2 flow...");
+    if (!dbClient) {
+        console.error("Supabase client not initialized.");
+        return;
+    }
 
-    const { data, error } = await dbClient.auth.signInWithOAuth({
+    const { error } = await dbClient.auth.signInWithOAuth({
         provider: 'discord',
         options: {
-            redirectTo: window.location.origin + (window.location.pathname.includes('/discord/') ? '/discord/' : '/')
+            redirectTo: window.location.origin + '/discord/'
         }
     });
 
@@ -41,58 +48,132 @@ async function handleLogout() {
 async function checkUserSession() {
     if (!dbClient) return;
 
-    const { data: { session }, error } = await dbClient.auth.getSession();
+    try {
+        const { data: { session }, error } = await dbClient.auth.getSession();
+        if (error) throw error;
 
-    if (session) {
-        const user = session.user;
-        const discordName = user.user_metadata.full_name || user.user_metadata.custom_claims?.global_name || "Virtual Pilot";
+        if (session) {
+            const user = session.user;
 
-        // Fetch custom profile data from 'profiles' table
-        const { data: profile, error: profileError } = await dbClient
-            .from('profiles')
-            .select('mileage_points, status_points, tier_level')
-            .eq('id', user.id)
-            .single();
+            // Fallback chain for Discord Metadata
+            const discordName = user.user_metadata.full_name ||
+                               user.user_metadata.global_name ||
+                               user.user_metadata.name ||
+                               user.user_metadata.user_name ||
+                               "Virtual Pilot";
 
-        if (profile) {
-            updateAuthUI({
+            // Fetch custom profile data from 'public.profiles' table
+            const { data: profile } = await dbClient
+                .from('profiles')
+                .select('mileage_points, status_points, tier_level')
+                .eq('id', user.id)
+                .single();
+
+            currentUserState = {
                 username: discordName,
-                tier: profile.tier_level || "White Wing",
-                miles: (profile.mileage_points || 0).toLocaleString()
-            });
-        } else {
-            // Fallback if profile trigger is still processing
-            updateAuthUI({
-                username: discordName,
-                tier: "White Wing",
-                miles: "0"
-            });
+                tier: profile?.tier_level || "White Wing",
+                miles: (profile?.mileage_points || 0).toLocaleString(),
+                avatar: user.user_metadata.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(discordName)}&background=FFC800&color=111625`
+            };
+
+            updateAuthUI();
         }
+    } catch (err) {
+        console.error("Session check failed:", err.message);
     }
 }
 
 // --- UI Logic ---
-function updateAuthUI(user) {
+function updateAuthUI() {
     const loginBtn = document.getElementById('login-btn');
     const userProfile = document.getElementById('user-profile');
 
-    if (user && userProfile && loginBtn) {
+    if (userProfile && loginBtn) {
         loginBtn.style.display = 'none';
         userProfile.style.display = 'flex';
 
         const nameEl = document.getElementById('user-name');
         const statsEl = document.getElementById('user-stats');
+        const avatarEl = userProfile.querySelector('img');
 
-        if (nameEl) nameEl.innerText = user.username;
-        if (statsEl) statsEl.innerText = `Tier: ${user.tier} | ${user.miles} Miles`;
+        if (nameEl) nameEl.innerText = currentUserState.username;
+        if (statsEl) statsEl.innerText = `Tier: ${currentUserState.tier} | ${currentUserState.miles} Miles`;
+        if (avatarEl && currentUserState.avatar) avatarEl.src = currentUserState.avatar;
 
         // Apply dynamic tier coloring
         userProfile.classList.remove('status-silver', 'status-gold', 'status-bronze');
-        const tierLower = user.tier.toLowerCase();
+        const tierLower = currentUserState.tier.toLowerCase();
         if (tierLower.includes('silver')) userProfile.classList.add('status-silver');
         else if (tierLower.includes('gold')) userProfile.classList.add('status-gold');
         else if (tierLower.includes('bronze')) userProfile.classList.add('status-bronze');
+
+        setupUserDropdown(userProfile);
     }
+}
+
+function setupUserDropdown(profileElement) {
+    // Remove old listeners to prevent duplicates
+    const newProfileElement = profileElement.cloneNode(true);
+    profileElement.parentNode.replaceChild(newProfileElement, profileElement);
+
+    newProfileElement.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const existingDropdown = document.getElementById('user-dropdown');
+        if (existingDropdown) {
+            existingDropdown.remove();
+        } else {
+            renderDropdown(newProfileElement);
+        }
+    });
+}
+
+function renderDropdown(parent) {
+    const dropdown = document.createElement('div');
+    dropdown.id = 'user-dropdown';
+    dropdown.className = 'user-dropdown-menu';
+
+    dropdown.innerHTML = `
+        <div class="dropdown-header">
+            <span class="user-name-large">${currentUserState.username}</span>
+            <span class="user-tier-badge">${currentUserState.tier}</span>
+        </div>
+        <div class="dropdown-divider"></div>
+        <div class="dropdown-info">
+            <div class="info-item">
+                <span class="label">Current Balance</span>
+                <span class="value">${currentUserState.miles} Miles</span>
+            </div>
+        </div>
+        <div class="dropdown-divider"></div>
+        <button id="logout-link" class="dropdown-item logout-btn">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                <polyline points="16 17 21 12 16 7"></polyline>
+                <line x1="21" y1="12" x2="9" y2="12"></line>
+            </svg>
+            <span>Logout</span>
+        </button>
+    `;
+
+    parent.appendChild(dropdown);
+
+    const logoutBtn = dropdown.querySelector('#logout-link');
+    logoutBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        handleLogout();
+    });
+
+    // Close on click outside
+    setTimeout(() => {
+        const closeDropdown = (e) => {
+            if (!dropdown.contains(e.target) && !parent.contains(e.target)) {
+                dropdown.remove();
+                document.removeEventListener('click', closeDropdown);
+            }
+        };
+        document.addEventListener('click', closeDropdown);
+    }, 10);
 }
 
 // --- Stats Animation ---
@@ -102,7 +183,7 @@ function animateStats() {
     stats.forEach(stat => {
         const target = +stat.getAttribute('data-target');
         const suffix = stat.getAttribute('data-suffix') || "";
-        const duration = 2000; // 2 seconds
+        const duration = 2000;
         let startTime = null;
 
         function step(timestamp) {
@@ -128,7 +209,6 @@ function initMobileMenu() {
             nav.classList.toggle('active');
         });
 
-        // Close menu when clicking a link
         nav.querySelectorAll('a').forEach(link => {
             link.addEventListener('click', () => {
                 toggle.classList.remove('active');
@@ -143,24 +223,18 @@ document.addEventListener('DOMContentLoaded', () => {
     checkUserSession();
     initMobileMenu();
 
-    const loginBtn = document.getElementById('login-btn');
-    if (loginBtn) {
-        loginBtn.addEventListener('click', (e) => {
-            e.preventDefault();
-            signInWithDiscord();
-        });
-    }
+    const loginBtns = document.querySelectorAll('#login-btn, .btn-primary:not(header .btn-primary)');
+    loginBtns.forEach(btn => {
+        if (btn.innerText.toLowerCase().includes('discord') || btn.id === 'login-btn') {
+            btn.addEventListener('click', (e) => {
+                if (btn.getAttribute('href') === '#' || !btn.getAttribute('href')) {
+                    e.preventDefault();
+                    signInWithDiscord();
+                }
+            });
+        }
+    });
 
-    const userProfile = document.getElementById('user-profile');
-    if (userProfile) {
-        userProfile.addEventListener('click', () => {
-            if (confirm("Do you want to log out?")) {
-                handleLogout();
-            }
-        });
-    }
-
-    // Trigger stats animation if we are on the discord page
     if (document.querySelector('.stat-number')) {
         const observer = new IntersectionObserver((entries) => {
             if (entries[0].isIntersecting) {
@@ -172,7 +246,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if (target) observer.observe(target);
     }
 
-    // Smooth Scrolling
     document.querySelectorAll('a[href^="#"]').forEach(anchor => {
         anchor.addEventListener('click', function (e) {
             const href = this.getAttribute('href');

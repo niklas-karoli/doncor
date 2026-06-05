@@ -3,13 +3,191 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Doncor PTFS - Redirecting...</title>
-    <script>
-        // Immediate redirect to the /discord/ page
-        window.location.replace("./discord/");
-    </script>
+    <title>Doncor Wings PTFS | Virtual Premium Airline Roleplay</title>
+    <link rel="stylesheet" href="assets/css/style.css">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🦅</text></svg>">
 </head>
 <body>
-    <p>If you are not redirected, <a href="./discord/">click here</a>.</p>
+
+    <!-- Header -->
+    <header>
+        <div class="container">
+            <a href="#" class="logo">
+                <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M10 50 L40 20 L90 20 L50 50 L90 80 L40 80 Z" fill="#FFC800"/>
+                    <path d="M20 50 L45 35 L75 35 L50 50 L75 65 L45 65 Z" fill="#ffffff" opacity="0.8"/>
+                </svg>
+                DONCOR WINGS PTFS
+            </a>
+
+            <nav>
+                <button class="mobile-toggle" id="mobile-toggle" aria-label="Toggle Navigation">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                </button>
+                <ul id="nav-menu">
+                    <li><a href="#">Home</a></li>
+                    <li><a href="#mileage">Mileage</a></li>
+                    <li><a href="#fleet">Fleet</a></li>
+                    <li><a href="#destinations">Destinations</a></li>
+                    <li><a href="discord/">Community</a></li>
+                </ul>
+                <div class="profile-area">
+                    <a href="#" id="login-btn" class="btn btn-primary">Sign In via Discord</a>
+                    <div id="user-profile" class="user-profile">
+                        <img src="https://ui-avatars.com/api/?name=Capt+Roblox&background=FFC800&color=111625" alt="Avatar">
+                        <div class="user-info">
+                            <span id="user-name" class="user-name">Capt_Roblox</span>
+                            <span id="user-stats" class="user-stats">Tier: Bronze | 2,800 Miles</span>
+                        </div>
+                    </div>
+                </div>
+            </nav>
+        </div>
+    </header>
+
+    <!-- Hero Section -->
+    <section class="hero">
+        <div class="container">
+            <h1>Fly Into The <span>Virtual Future</span></h1>
+            <p>Welcome to Doncor Wings PTFS. The most professional virtual roleplay airline on Roblox. Experience high-end aviation, advanced status tiers, and a dedicated community of pilots.</p>
+            <div style="display: flex; gap: 20px; justify-content: center;">
+                <a href="discord/" class="btn btn-primary">Join Virtual Server</a>
+                <a href="#mileage" class="btn btn-outline">Explore Tiers</a>
+            </div>
+        </div>
+    </section>
+
+    <!-- Destinations Section -->
+    <section id="destinations">
+        <div class="container">
+            <h2 class="section-title">Top <span>Destinations</span></h2>
+            <div class="dest-grid">
+                <div class="card">
+                    <div class="card-img" style="background-image: url('https://images.unsplash.com/photo-1512753362248-663059df4856?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80');"></div>
+                    <div class="card-body">
+                        <h3>Palma de Mallorca</h3>
+                        <p>Our virtual hub in the Balearic Islands. Experience scenic approaches.</p>
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-img" style="background-image: url('https://images.unsplash.com/photo-1506154411172-e1d556942121?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80');"></div>
+                    <div class="card-body">
+                        <h3>Canary Islands</h3>
+                        <p>Fly virtual routes to Tenerife, Gran Canaria, and beyond.</p>
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-img" style="background-image: url('https://images.unsplash.com/photo-1546412414-8035e1776c9a?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80');"></div>
+                    <div class="card-body">
+                        <h3>Maldives</h3>
+                        <p>Experience the ultimate virtual long-haul destination.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <div class="hazard-line"></div>
+
+    <!-- Mileage Program Section -->
+    <section id="mileage">
+        <div class="container">
+            <h2 class="section-title">Mileage <span>Program</span></h2>
+            <div style="text-align: center; margin-bottom: 50px; color: var(--text-muted);">
+                Earn 10 Miles & 5 Status Points per 1 minute of virtual airtime. Plus exclusive landing bonuses.
+            </div>
+
+            <div class="tiers-grid">
+                <!-- White Wing -->
+                <div class="tier-card">
+                    <h3>White Wing</h3>
+                    <div class="tier-rate">Entry Tier</div>
+                    <ul class="tier-benefits">
+                        <li>Digital Member Card</li>
+                        <li>Basic Web Dashboard Access</li>
+                        <li>Virtual Community Access</li>
+                    </ul>
+                </div>
+                <!-- Bronze Aviator -->
+                <div class="tier-card">
+                    <h3>Bronze Aviator</h3>
+                    <div class="tier-rate">5,000 Status Points</div>
+                    <ul class="tier-benefits">
+                        <li>Exclusive Discord Role/Color</li>
+                        <li>Priority Virtual Event Booking</li>
+                        <li>10% Mileage Booster</li>
+                    </ul>
+                </div>
+                <!-- Silver Commander -->
+                <div class="tier-card tier-silver">
+                    <h3>Silver Commander</h3>
+                    <div class="tier-rate">25,000 Status Points</div>
+                    <ul class="tier-benefits">
+                        <li>Secret Discord Lounge Access</li>
+                        <li>Rare In-Game Livery Permissions</li>
+                        <li>25% Mileage Booster</li>
+                    </ul>
+                </div>
+                <!-- Gold Captain -->
+                <div class="tier-card tier-gold">
+                    <h3>Gold Captain</h3>
+                    <div class="tier-rate">100,000 Status Points</div>
+                    <ul class="tier-benefits">
+                        <li>Golden Chat Color & [DC-Gold] Tag</li>
+                        <li>ATC Priority Slots</li>
+                        <li>50% Mileage Booster</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Fleet Section -->
+    <section id="fleet" style="background-color: var(--bg-section);">
+        <div class="container">
+            <h2 class="section-title">Virtual <span>Fleet</span></h2>
+            <div class="fleet-grid">
+                <div class="card">
+                    <div class="card-img" style="background-image: url('https://images.unsplash.com/photo-1540962351504-03099e0a754b?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80');"></div>
+                    <div class="card-body">
+                        <h3>Airbus A321neo</h3>
+                        <p>The efficient workhorse for our short-haul virtual RP routes.</p>
+                        <a href="discord/" class="btn btn-outline" style="width: 100%;">Book Virtual RP Flight</a>
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-img" style="background-image: url('https://images.unsplash.com/photo-1559266763-fae3bb3fe33c?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80');"></div>
+                    <div class="card-body">
+                        <h3>Airbus A330neo</h3>
+                        <p>Our long-haul flagship for premium virtual travel experiences.</p>
+                        <a href="discord/" class="btn btn-outline" style="width: 100%;">Book Virtual RP Flight</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer>
+        <div class="container">
+            <div style="display: flex; justify-content: center; margin-bottom: 30px;">
+                <div class="logo">
+                    <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M10 50 L40 20 L90 20 L50 50 L90 80 L40 80 Z" fill="#FFC800"/>
+                        <path d="M20 50 L45 35 L75 35 L50 50 L75 65 L45 65 Z" fill="#ffffff" opacity="0.8"/>
+                    </svg>
+                    DONCOR WINGS PTFS
+                </div>
+            </div>
+            <div class="hazard-line" style="max-width: 200px; margin: 0 auto;"></div>
+            <p class="legal-text">
+                Doncor Wings PTFS is a fictional roleplay community for Roblox/PTFS. This website is purely for entertainment purposes. We have no official affiliation, connection, or endorsement with or by Condor Flugdienst GmbH or any real-world airline.
+            </p>
+        </div>
+    </footer>
+
+    <script src="assets/js/main.js"></script>
 </body>
 </html>

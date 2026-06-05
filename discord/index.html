@@ -3,172 +3,108 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Doncor PTFS | Fictional Roleplay Airline</title>
+    <title>Community | Doncor Wings PTFS</title>
     <link rel="stylesheet" href="../assets/css/style.css">
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>✈️</text></svg>">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>💬</text></svg>">
 </head>
 <body>
-
-    <!-- Language Modal -->
-    <div id="language-modal" class="modal-overlay">
-        <div class="modal-content">
-            <h2 data-i18n="modal-title">Choose your language</h2>
-            <div class="modal-btns">
-                <button id="lang-en" class="lang-btn">
-                    <img src="https://flagcdn.com/w80/gb.png" alt="English">
-                    <span>English</span>
-                </button>
-                <button id="lang-de" class="lang-btn">
-                    <img src="https://flagcdn.com/w80/de.png" alt="Deutsch">
-                    <span>Deutsch</span>
-                </button>
-            </div>
-        </div>
-    </div>
 
     <!-- Header -->
     <header>
         <div class="container">
-            <a href="#" class="logo">
-                <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M21 16.5L13.5 12L21 7.5V16.5Z" fill="#f8c200"/>
-                    <path d="M3 7.5L10.5 12L3 16.5V7.5Z" fill="#f8c200"/>
-                    <path d="M12 13.5L16.5 21H7.5L12 13.5Z" fill="#4d4d4d"/>
-                    <path d="M12 10.5L7.5 3H16.5L12 10.5Z" fill="#4d4d4d"/>
+            <a href="../" class="logo">
+                <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M10 50 L40 20 L90 20 L50 50 L90 80 L40 80 Z" fill="#FFC800"/>
+                    <path d="M20 50 L45 35 L75 35 L50 50 L75 65 L45 65 Z" fill="#ffffff" opacity="0.8"/>
                 </svg>
-                DONCOR
+                DONCOR WINGS PTFS
             </a>
 
             <nav>
-                <button id="mobile-menu-btn" class="mobile-menu-btn" aria-label="Toggle Menu">
+                <button class="mobile-toggle" id="mobile-toggle" aria-label="Toggle Navigation">
                     <span></span>
                     <span></span>
                     <span></span>
                 </button>
-                <ul id="nav-links">
-                    <li><a href="#" data-i18n="nav-home">Home</a></li>
-                    <li><a href="#fleet" data-i18n="nav-fleet">Fleet</a></li>
-                    <li><a href="#destinations" data-i18n="nav-destinations">Destinations</a></li>
-                    <li><a href="#miles" data-i18n="nav-miles">Miles</a></li>
-                    <li><a href="#discord" class="btn btn-primary" data-i18n="nav-discord">Join Discord</a></li>
-                    <li><button id="lang-toggle" class="lang-switch">DE</button></li>
+                <ul id="nav-menu">
+                    <li><a href="../">Home</a></li>
+                    <li><a href="../#mileage">Mileage</a></li>
+                    <li><a href="../#fleet">Fleet</a></li>
+                    <li><a href="../#destinations">Destinations</a></li>
+                    <li><a href="#">Community</a></li>
                 </ul>
+                <div class="profile-area">
+                    <a href="#" id="login-btn" class="btn btn-primary">Sign In via Discord</a>
+                    <div id="user-profile" class="user-profile">
+                        <img src="https://ui-avatars.com/api/?name=Capt+Roblox&background=FFC800&color=111625" alt="Avatar">
+                        <div class="user-info">
+                            <span id="user-name" class="user-name">Capt_Roblox</span>
+                            <span id="user-stats" class="user-stats">Tier: Bronze | 2,800 Miles</span>
+                        </div>
+                    </div>
+                </div>
             </nav>
         </div>
     </header>
 
-    <!-- Hero Section -->
-    <section class="hero">
+    <!-- Community Hero -->
+    <section class="hero" style="background-image: linear-gradient(rgba(17, 22, 37, 0.9), rgba(17, 22, 37, 0.9)), url('https://images.unsplash.com/photo-1521737604893-d14cc237f11d?ixlib=rb-4.0.3&auto=format&fit=crop&w=1920&q=80');">
         <div class="container">
-            <div class="hero-content">
-                <h1 data-i18n="hero-title">The Most Professional RP Airline</h1>
-                <p data-i18n="hero-subtitle">Experience high-end aviation roleplay with Doncor PTFS. Fly to your dream destinations with our modern fleet.</p>
-                <a href="#discord" class="btn btn-primary" data-i18n="hero-cta">Start Your Journey</a>
-            </div>
+            <h1 class="hazard-border" style="display: inline-block; padding-bottom: 10px; margin-bottom: 30px;">The <span>Community</span></h1>
+            <p>Connect with thousands of aviation enthusiasts. Our Discord server is the hub for all virtual flight bookings, job applications, and daily community events.</p>
+            <a href="https://discord.gg/your-link" target="_blank" class="btn btn-discord btn-lg" style="padding: 20px 50px; font-size: 1.2rem;">Join Virtual Server</a>
         </div>
     </section>
 
-    <!-- Fleet Section -->
-    <section id="fleet">
+    <!-- Stats Section -->
+    <section>
         <div class="container">
-            <h2 class="section-title" data-i18n="fleet-title">Our Active Fleet</h2>
-            <div class="fleet-grid">
-                <!-- A321neo -->
-                <div class="card">
-                    <div class="card-img" style="background-image: url('https://images.unsplash.com/photo-1540962351504-03099e0a754b?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80');"></div>
-                    <div class="card-body">
-                        <h3 data-i18n="fleet-a321-name">Airbus A321neo</h3>
-                        <p data-i18n="fleet-a321-desc">The workhorse of our short and medium-haul routes, offering efficiency and comfort.</p>
-                        <button class="btn btn-outline" data-i18n="book-now" disabled>Book Now</button>
-                    </div>
+            <div class="stats-grid">
+                <div class="stat-item">
+                    <h2 class="stat-number" data-target="150" data-suffix="+">0</h2>
+                    <p>Active Pilots</p>
                 </div>
-                <!-- A330neo -->
-                <div class="card">
-                    <div class="card-img" style="background-image: url('https://images.unsplash.com/photo-1559266763-fae3bb3fe33c?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80');"></div>
-                    <div class="card-body">
-                        <h3 data-i18n="fleet-a330-name">Airbus A330neo</h3>
-                        <p data-i18n="fleet-a330-desc">Our long-haul flagship, bringing you to the most beautiful places in the world.</p>
-                        <button class="btn btn-outline" data-i18n="book-now" disabled>Book Now</button>
-                    </div>
+                <div class="stat-item">
+                    <h2 class="stat-number" data-target="1200" data-suffix="+">0</h2>
+                    <p>Virtual Flights Completed</p>
+                </div>
+                <div class="stat-item">
+                    <h2 class="stat-number" data-target="850" data-suffix="+ Hours">0</h2>
+                    <p>Total Airtime</p>
                 </div>
             </div>
         </div>
     </section>
 
-    <!-- Destinations Section -->
-    <section id="destinations">
+    <!-- Community Promo -->
+    <section style="padding-top: 0;">
         <div class="container">
-            <h2 class="section-title" data-i18n="destinations-title">Top Destinations</h2>
-            <div class="dest-grid">
-                <div class="dest-item">
-                    <img src="https://images.unsplash.com/photo-1512753362246-7646665b76a0?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80" alt="Mallorca">
-                    <div class="dest-overlay">
-                        <h3>Mallorca (PMI)</h3>
-                    </div>
-                </div>
-                <div class="dest-item">
-                    <img src="https://images.unsplash.com/photo-1589492477829-5e65395b66cc?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80" alt="Canary Islands">
-                    <div class="dest-overlay">
-                        <h3>Canary Islands (TFS)</h3>
-                    </div>
-                </div>
-                <div class="dest-item">
-                    <img src="https://images.unsplash.com/photo-1514282401047-d79a71a590e8?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80" alt="Malé">
-                    <div class="dest-overlay">
-                        <h3>Malé (MLE)</h3>
-                    </div>
-                </div>
+            <div class="discord-promo">
+                <h2 class="section-title" style="margin-bottom: 20px;">Ready to <span>Take Off?</span></h2>
+                <p style="margin-bottom: 40px; color: var(--text-muted); max-width: 600px; margin-left: auto; margin-right: auto;">
+                    Link your virtual Discord account today to start earning miles, climbing the status tiers, and accessing exclusive virtual content.
+                </p>
+                <a href="#" class="btn btn-primary">Link Virtual Discord Account</a>
             </div>
-        </div>
-    </section>
-
-    <!-- Miles Section -->
-    <section id="miles" class="miles-section">
-        <div class="container">
-            <div class="miles-flex">
-                <div class="miles-image">
-                    <img src="https://images.unsplash.com/photo-1473862170180-84427c485aca?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80" alt="Lounge">
-                </div>
-                <div class="miles-content">
-                    <h2 class="section-title" style="text-align: left; margin-bottom: 20px;" data-i18n="miles-title">Doncor Miles Program</h2>
-                    <p style="margin-bottom: 30px;" data-i18n="miles-desc">Join our frequent flyer program and earn miles on every flight. Unlock exclusive rewards and ranks within our community.</p>
-                    <button class="btn btn-outline" data-i18n="miles-cta" disabled>Check Miles</button>
-                </div>
-            </div>
-        </div>
-    </section>
-
-    <!-- Discord CTA Section -->
-    <section id="discord" class="discord-cta">
-        <div class="container">
-            <h2 data-i18n="discord-title">Join Our Community</h2>
-            <p data-i18n="discord-desc">Connect with thousands of aviation enthusiasts. Book flights, apply for jobs, and participate in daily events on our Discord server.</p>
-            <a href="https://discord.gg/your-link" target="_blank" class="btn discord-btn" data-i18n="discord-cta">Join Server</a>
         </div>
     </section>
 
     <!-- Footer -->
     <footer>
         <div class="container">
-            <div class="footer-top">
-                <div class="footer-logo">
-                    <div class="logo">
-                        <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                            <path d="M21 16.5L13.5 12L21 7.5V16.5Z" fill="#f8c200"/>
-                            <path d="M3 7.5L10.5 12L3 16.5V7.5Z" fill="#f8c200"/>
-                            <path d="M12 13.5L16.5 21H7.5L12 13.5Z" fill="#4d4d4d"/>
-                            <path d="M12 10.5L7.5 3H16.5L12 10.5Z" fill="#4d4d4d"/>
-                        </svg>
-                        DONCOR
-                    </div>
-                </div>
-                <div class="footer-links">
-                    <!-- Additional links can go here -->
+            <div style="display: flex; justify-content: center; margin-bottom: 30px;">
+                <div class="logo">
+                    <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M10 50 L40 20 L90 20 L50 50 L90 80 L40 80 Z" fill="#FFC800"/>
+                        <path d="M20 50 L45 35 L75 35 L50 50 L75 65 L45 65 Z" fill="#ffffff" opacity="0.8"/>
+                    </svg>
+                    DONCOR WINGS PTFS
                 </div>
             </div>
-            <div class="legal-text" data-i18n="legal-notice">
-                Doncor PTFS is a fictional roleplay community for Roblox/PTFS. This website is purely for entertainment purposes. We have no official affiliation, connection, or endorsement with or by Condor Flugdienst GmbH or any real-world airline.
-            </div>
+            <div class="hazard-line" style="max-width: 200px; margin: 0 auto;"></div>
+            <p class="legal-text">
+                Doncor Wings PTFS is a fictional roleplay community for Roblox/PTFS. This website is purely for entertainment purposes. We have no official affiliation, connection, or endorsement with or by Condor Flugdienst GmbH or any real-world airline.
+            </p>
         </div>
     </footer>
 

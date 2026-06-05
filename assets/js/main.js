@@ -1,147 +1,141 @@
-const translations = {
-    en: {
-        "modal-title": "Choose your language",
-        "nav-home": "Home",
-        "nav-fleet": "Fleet",
-        "nav-destinations": "Destinations",
-        "nav-miles": "Miles",
-        "nav-discord": "Join Discord",
-        "hero-title": "The Most Professional RP Airline",
-        "hero-subtitle": "Experience high-end aviation roleplay with Doncor PTFS. Fly to your dream destinations with our modern fleet.",
-        "hero-cta": "Start Your Journey",
-        "fleet-title": "Our Active Fleet",
-        "fleet-a321-name": "Airbus A321neo",
-        "fleet-a321-desc": "The workhorse of our short and medium-haul routes, offering efficiency and comfort.",
-        "fleet-a330-name": "Airbus A330neo",
-        "fleet-a330-desc": "Our long-haul flagship, bringing you to the most beautiful places in the world.",
-        "destinations-title": "Top Destinations",
-        "miles-title": "Doncor Miles Program",
-        "miles-desc": "Join our frequent flyer program and earn miles on every flight. Unlock exclusive rewards and ranks within our community.",
-        "miles-cta": "Check Miles",
-        "discord-title": "Join Our Community",
-        "discord-desc": "Connect with thousands of aviation enthusiasts. Book flights, apply for jobs, and participate in daily events on our Discord server.",
-        "discord-cta": "Join Server",
-        "legal-notice": "Doncor PTFS is a fictional roleplay community for Roblox/PTFS. This website is purely for entertainment purposes. We have no official affiliation, connection, or endorsement with or by Condor Flugdienst GmbH or any real-world airline.",
-        "book-now": "Book Now"
-    },
-    de: {
-        "modal-title": "Wählen Sie Ihre Sprache",
-        "nav-home": "Startseite",
-        "nav-fleet": "Flotte",
-        "nav-destinations": "Ziele",
-        "nav-miles": "Meilen",
-        "nav-discord": "Discord beitreten",
-        "hero-title": "Die professionellste RP-Airline",
-        "hero-subtitle": "Erleben Sie High-End-Aviation-Roleplay mit Doncor PTFS. Fliegen Sie mit unserer modernen Flotte zu Ihren Traumzielen.",
-        "hero-cta": "Reise starten",
-        "fleet-title": "Unsere aktive Flotte",
-        "fleet-a321-name": "Airbus A321neo",
-        "fleet-a321-desc": "Das Arbeitspferd für unsere Kurz- und Mittelstrecken, effizient und komfortabel.",
-        "fleet-a330-name": "Airbus A330neo",
-        "fleet-a330-desc": "Unser Langstrecken-Flaggschiff, das Sie zu den schönsten Orten der Welt bringt.",
-        "destinations-title": "Top-Reiseziele",
-        "miles-title": "Doncor Meilen-Programm",
-        "miles-desc": "Werden Sie Mitglied in unserem Vielfliegerprogramm und sammeln Sie bei jedem Flug Meilen. Schalten Sie exklusive Belohnungen und Ränge frei.",
-        "miles-cta": "Meilen prüfen",
-        "discord-title": "Tritt unserer Community bei",
-        "discord-desc": "Verbinde dich mit Tausenden von Luftfahrtbegeisterten. Buche Flüge, bewirb dich um Jobs und nimm an täglichen Events auf unserem Discord-Server teil.",
-        "discord-cta": "Server beitreten",
-        "legal-notice": "Doncor PTFS ist eine fiktive Rollenspiel-Community für Roblox/PTFS. Diese Website dient rein zu Unterhaltungszwecken. Wir haben keine offizielle Verbindung, Verbindung oder Unterstützung durch die Condor Flugdienst GmbH oder eine andere reale Fluggesellschaft.",
-        "book-now": "Jetzt buchen"
+/**
+ * DONCOR WINGS PTFS - Main Logic
+ * Prepared for Supabase Integration
+ */
+
+// --- Supabase Mock / Placeholder Functions ---
+async function signUpWithDiscord() {
+    console.log("Supabase: Initiating Discord OAuth2 flow...");
+    // Future: const { data, error } = await supabase.auth.signInWithOAuth({ provider: 'discord' })
+
+    // For now: Simulate a successful login
+    simulateLogin();
+}
+
+async function checkUserSession() {
+    console.log("Supabase: Checking active session...");
+    // Future: const { data: { session } } = await supabase.auth.getSession()
+    return null;
+}
+
+// --- UI Logic ---
+function simulateLogin() {
+    localStorage.setItem('doncor_mock_user', JSON.stringify({
+        username: "Capt_Roblox",
+        tier: "Bronze Aviator",
+        miles: "2,800"
+    }));
+    updateAuthUI();
+}
+
+function updateAuthUI() {
+    const user = JSON.parse(localStorage.getItem('doncor_mock_user'));
+    const loginBtn = document.getElementById('login-btn');
+    const userProfile = document.getElementById('user-profile');
+
+    if (user && userProfile && loginBtn) {
+        loginBtn.style.display = 'none';
+        userProfile.style.display = 'flex';
+        document.getElementById('user-name').innerText = user.username;
+        document.getElementById('user-stats').innerText = `Tier: ${user.tier} | ${user.miles} Miles`;
     }
-};
+}
 
-document.addEventListener('DOMContentLoaded', () => {
-    const languageModal = document.getElementById('language-modal');
-    const langEnBtn = document.getElementById('lang-en');
-    const langDeBtn = document.getElementById('lang-de');
-    const langToggleBtn = document.getElementById('lang-toggle');
-    const mobileMenuBtn = document.getElementById('mobile-menu-btn');
-    const navLinks = document.getElementById('nav-links');
+function logout() {
+    localStorage.removeItem('doncor_mock_user');
+    window.location.reload();
+}
 
-    // --- Language Logic ---
-    function setLanguage(lang) {
-        localStorage.setItem('doncor_lang', lang);
-        document.documentElement.lang = lang;
+// --- Stats Animation ---
+function animateStats() {
+    const stats = document.querySelectorAll('.stat-number');
 
-        // Update all elements with data-i18n attribute
-        document.querySelectorAll('[data-i18n]').forEach(element => {
-            const key = element.getAttribute('data-i18n');
-            if (translations[lang][key]) {
-                element.innerText = translations[lang][key];
+    stats.forEach(stat => {
+        const target = +stat.getAttribute('data-target');
+        const suffix = stat.getAttribute('data-suffix') || "";
+        const duration = 2000; // 2 seconds
+        let startTime = null;
+
+        function step(timestamp) {
+            if (!startTime) startTime = timestamp;
+            const progress = Math.min((timestamp - startTime) / duration, 1);
+            stat.innerText = Math.floor(progress * target) + suffix;
+            if (progress < 1) {
+                requestAnimationFrame(step);
             }
-        });
-
-        // Update language toggle button text
-        if (langToggleBtn) {
-            langToggleBtn.innerText = lang === 'en' ? 'DE' : 'EN';
         }
+        requestAnimationFrame(step);
+    });
+}
 
-        // Hide modal if it's open
-        if (languageModal) {
-            languageModal.style.display = 'none';
-        }
-    }
+// --- Mobile Menu ---
+function initMobileMenu() {
+    const toggle = document.getElementById('mobile-toggle');
+    const nav = document.getElementById('nav-menu');
 
-    // Check for saved language or show modal
-    const savedLang = localStorage.getItem('doncor_lang');
-    if (savedLang) {
-        setLanguage(savedLang);
-        if (languageModal) languageModal.style.display = 'none';
-    } else {
-        if (languageModal) languageModal.style.display = 'flex';
-    }
-
-    // Modal buttons
-    if (langEnBtn) {
-        langEnBtn.addEventListener('click', () => setLanguage('en'));
-    }
-    if (langDeBtn) {
-        langDeBtn.addEventListener('click', () => setLanguage('de'));
-    }
-
-    // Header toggle button
-    if (langToggleBtn) {
-        langToggleBtn.addEventListener('click', () => {
-            const currentLang = localStorage.getItem('doncor_lang') || 'en';
-            setLanguage(currentLang === 'en' ? 'de' : 'en');
-        });
-    }
-
-    // --- Mobile Menu Logic ---
-    if (mobileMenuBtn && navLinks) {
-        mobileMenuBtn.addEventListener('click', () => {
-            navLinks.classList.toggle('active');
-            mobileMenuBtn.classList.toggle('open');
+    if (toggle && nav) {
+        toggle.addEventListener('click', () => {
+            toggle.classList.toggle('active');
+            nav.classList.toggle('active');
         });
 
-        // Close menu when a link is clicked
-        navLinks.querySelectorAll('a').forEach(link => {
+        // Close menu when clicking a link
+        nav.querySelectorAll('a').forEach(link => {
             link.addEventListener('click', () => {
-                navLinks.classList.remove('active');
-                mobileMenuBtn.classList.remove('open');
+                toggle.classList.remove('active');
+                nav.classList.remove('active');
             });
         });
     }
+}
 
-    // --- Smooth Scrolling ---
+// --- Initialize ---
+document.addEventListener('DOMContentLoaded', () => {
+    updateAuthUI();
+    initMobileMenu();
+
+    const loginBtn = document.getElementById('login-btn');
+    if (loginBtn) {
+        loginBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            signUpWithDiscord();
+        });
+    }
+
+    const userProfile = document.getElementById('user-profile');
+    if (userProfile) {
+        userProfile.addEventListener('click', () => {
+            if (confirm("Do you want to log out?")) {
+                logout();
+            }
+        });
+    }
+
+    // Trigger stats animation if we are on the discord page
+    if (document.querySelector('.stat-number')) {
+        // Simple Intersection Observer to start animation when visible
+        const observer = new IntersectionObserver((entries) => {
+            if (entries[0].isIntersecting) {
+                animateStats();
+                observer.disconnect();
+            }
+        });
+        observer.observe(document.querySelector('.stats-grid'));
+    }
+
+    // Smooth Scrolling
     document.querySelectorAll('a[href^="#"]').forEach(anchor => {
         anchor.addEventListener('click', function (e) {
             const href = this.getAttribute('href');
-
-            // Ignore empty hashes or non-anchor links
             if (href === '#' || href === '') {
                 e.preventDefault();
                 window.scrollTo({ top: 0, behavior: 'smooth' });
                 return;
             }
-
             const target = document.querySelector(href);
             if (target) {
                 e.preventDefault();
-                target.scrollIntoView({
-                    behavior: 'smooth'
-                });
+                target.scrollIntoView({ behavior: 'smooth' });
             }
         });
     });

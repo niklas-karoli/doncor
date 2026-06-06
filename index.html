@@ -48,14 +48,52 @@
         </div>
     </header>
 
-    <!-- Hero Section -->
-    <section class="hero">
+    <!-- Hero Section: Professional Booking Hub -->
+    <section class="hero-booking">
         <div class="container">
-            <h1>Fly Into The <span>Virtual Future</span></h1>
-            <p>Welcome to Doncor Wings PTFS. The most professional virtual roleplay airline on Roblox. Experience high-end aviation, advanced status tiers, and a dedicated community of pilots.</p>
-            <div style="display: flex; gap: 20px; justify-content: center;">
-                <a href="discord/" class="btn btn-primary">Join Virtual Server</a>
-                <a href="#mileage" class="btn btn-outline">Explore Tiers</a>
+            <div class="booking-container">
+                <div class="booking-header">
+                    <h1>Book your <span>Virtual Journey</span></h1>
+                    <p>Experience premium PTFS aviation with Doncor Wings</p>
+                </div>
+
+                <div class="booking-mask">
+                    <div class="input-group" id="departure-group">
+                        <label>From</label>
+                        <div class="input-wrapper">
+                            <input type="text" id="departure-input" placeholder="Departure Location" autocomplete="off">
+                            <div id="departure-list" class="autocomplete-list"></div>
+                        </div>
+                    </div>
+
+                    <div class="input-group" id="arrival-group">
+                        <label>To</label>
+                        <div class="input-wrapper">
+                            <input type="text" id="arrival-input" placeholder="Arrival Location" autocomplete="off">
+                            <div id="arrival-list" class="autocomplete-list"></div>
+                        </div>
+                    </div>
+
+                    <div class="input-group" id="date-group">
+                        <label>Date</label>
+                        <div class="input-wrapper">
+                            <input type="text" id="date-input" placeholder="Select Date" readonly>
+                            <div id="calendar-picker" class="calendar-picker"></div>
+                        </div>
+                    </div>
+
+                    <button id="search-flights-btn" class="btn btn-primary">Search Flights</button>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Flight Results Section -->
+    <section id="flight-results" class="results-section" style="display: none;">
+        <div class="container">
+            <h2 class="section-title">Available <span>Flights</span></h2>
+            <div id="flights-container" class="flights-container">
+                <!-- Dynamic Flight Cards Inserted Here -->
             </div>
         </div>
     </section>

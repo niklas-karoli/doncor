@@ -53,6 +53,14 @@ function calculateTier(miles) {
     return "White Wing";
 }
 
+// --- Tier Logic ---
+function calculateTier(miles) {
+    if (miles >= 72000) return "Gold Captain (Elite)";
+    if (miles >= 36000) return "Silver Commander";
+    if (miles >= 12000) return "Bronze Aviator";
+    return "White Wing";
+}
+
 // --- Auth Functions ---
 async function signInWithDiscord() {
     if (!dbClient) {

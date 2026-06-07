@@ -1,6 +1,6 @@
 /**
  * DONCOR WINGS PTFS - Main Logic
- * Professional Booking Hub Edition - v2.3 Final
+ * Professional Booking Hub Edition - v2.3 Final (Fixed & Cleaned)
  */
 
 const supabaseUrl = 'https://cqybjgwbehmjpeecqkbq.supabase.co';
@@ -113,7 +113,7 @@ async function fetchActiveFlightData() {
     try {
         const { data, error } = await dbClient
             .from('flights')
-            .select('departure_airport, destination_airport, event_start');
+            .select('departure_airport, destination_airport, event_start, original_start, event_end, is_delayed, aircraft_type, is_codeshare, codeshare_airline, codeshare_discord_link, available_classes, flight_number');
 
         if (error || !data) return;
 
@@ -472,39 +472,8 @@ function updateAuthUI() {
         if (statsEl) statsEl.textContent = `${currentUserState.tier} | ${currentUserState.miles.toLocaleString()} Miles`;
         if (avatarEl) avatarEl.src = currentUserState.avatar;
 
-    let options = [];
-    if (isDeparture) {
-        options = appData.departureAirports;
-    } else {
-        const depVal = document.getElementById('departure-input')?.value || "";
-        options = [...new Set(appData.activeFlights.filter(f => f.departure_airport === depVal).map(f => f.destination_airport).filter(Boolean))];
+        setupUserDropdown(userProfile);
     }
-
-    const query = input.value.toLowerCase();
-    const filtered = options.filter(o => o.toLowerCase().includes(query)).sort();
-
-    if (filtered.length > 0) {
-        filtered.forEach(o => {
-            const item = document.createElement('div');
-            item.className = 'autocomplete-item';
-            item.textContent = o;
-            item.onclick = () => {
-                input.value = o;
-                list.style.display = 'none';
-                if (isDeparture) {
-                    const arr = document.getElementById('arrival-input');
-                    if (arr) arr.value = '';
-                }
-            };
-            list.appendChild(item);
-        });
-    } else {
-        const item = document.createElement('div');
-        item.className = 'autocomplete-item empty-state';
-        item.textContent = isDeparture ? "No scheduled departures" : "No available destinations";
-        list.appendChild(item);
-    }
-    list.style.display = 'block';
 }
 
 function setupUserDropdown(el) {
@@ -581,26 +550,13 @@ function initMobileMenu() {
             toggle.classList.toggle('active');
             menu.classList.toggle('active');
         };
-        // Close on link click
         menu.querySelectorAll('a').forEach(link => {
             link.onclick = () => {
                 toggle.classList.remove('active');
                 menu.classList.remove('active');
             };
         });
-    } else {
-        const p = document.createElement('p'); p.className = 'empty-state'; p.textContent = 'No active bookings';
-        list.appendChild(p);
     }
-    info.appendChild(list); dropdown.appendChild(info);
-
-    const div2 = document.createElement('div'); div2.className = 'dropdown-divider'; dropdown.appendChild(div2);
-
-    const logout = document.createElement('button'); logout.className = 'dropdown-item logout-btn'; logout.textContent = 'Logout';
-    logout.onclick = handleLogout; dropdown.appendChild(logout);
-
-    parent.appendChild(dropdown);
-    document.addEventListener('click', (e) => { if(!dropdown.contains(e.target)) dropdown.remove(); }, {once:true});
 }
 
 // --- Initialize ---

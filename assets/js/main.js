@@ -1,6 +1,6 @@
 /**
  * DONCOR WINGS PTFS - Main Logic
- * Professional Booking Hub Edition - v2.2 Production Robust
+ * Professional Booking Hub Edition - v2.3 Final
  */
 
 const supabaseUrl = 'https://cqybjgwbehmjpeecqkbq.supabase.co';
@@ -472,13 +472,40 @@ function updateAuthUI() {
         if (statsEl) statsEl.textContent = `${currentUserState.tier} | ${currentUserState.miles.toLocaleString()} Miles`;
         if (avatarEl) avatarEl.src = currentUserState.avatar;
 
-    if (searchBtn) {
-        searchBtn.onclick = (e) => {
-            e.preventDefault();
-            performSearch(depInput.value, arrInput.value, appData.selectedDate);
-        };
+    let options = [];
+    if (isDeparture) {
+        options = appData.departureAirports;
+    } else {
+        const depVal = document.getElementById('departure-input')?.value || "";
+        options = [...new Set(appData.activeFlights.filter(f => f.departure_airport === depVal).map(f => f.destination_airport).filter(Boolean))];
     }
-    info.appendChild(list); dropdown.appendChild(info);
+
+    const query = input.value.toLowerCase();
+    const filtered = options.filter(o => o.toLowerCase().includes(query)).sort();
+
+    if (filtered.length > 0) {
+        filtered.forEach(o => {
+            const item = document.createElement('div');
+            item.className = 'autocomplete-item';
+            item.textContent = o;
+            item.onclick = () => {
+                input.value = o;
+                list.style.display = 'none';
+                if (isDeparture) {
+                    const arr = document.getElementById('arrival-input');
+                    if (arr) arr.value = '';
+                }
+            };
+            list.appendChild(item);
+        });
+    } else {
+        const item = document.createElement('div');
+        item.className = 'autocomplete-item empty-state';
+        item.textContent = isDeparture ? "No scheduled departures" : "No available destinations";
+        list.appendChild(item);
+    }
+    list.style.display = 'block';
+}
 
 function setupUserDropdown(el) {
     const newEl = el.cloneNode(true);

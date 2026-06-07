@@ -1,14 +1,12 @@
 /**
  * DONCOR WINGS PTFS - Main Logic
- * Professional Booking Hub Edition - Robust Production Build
+ * Professional Booking Hub Edition - v2.1 Secure & Accurate
  */
 
-// --- Supabase Configuration ---
 const supabaseUrl = 'https://cqybjgwbehmjpeecqkbq.supabase.co';
 const supabaseKey = 'sb_publishable_8jrQCtGf-KaQR1s7avn4ew_RJcuBSfz';
 let dbClient = null;
 
-// Persistent state for the current user
 let currentUserState = {
     id: null,
     discord_id: '',
@@ -16,36 +14,27 @@ let currentUserState = {
     tier: 'White Wing',
     miles: 0,
     avatar: '',
-    vouchers: {
-        business: 0,
-        first: 0
-    }
+    vouchers: { business: 0, first: 0 },
+    bookings: []
 };
 
-// Application State
 let appData = {
     activeFlights: [],
-    airports: [],
-    flightDates: [], // Strings in YYYY-MM-DD
+    departureAirports: [],
+    arrivalAirports: [],
+    flightDates: [],
     selectedDate: null,
     isDataLoaded: false
 };
 
-// Initialize Supabase with better error handling
 function initSupabase() {
     try {
         if (typeof supabase !== 'undefined') {
             dbClient = supabase.createClient(supabaseUrl, supabaseKey);
-            console.log("Supabase Client Initialized Successfully");
-        } else {
-            console.error("Supabase library not found. Ensure the CDN script is loaded.");
         }
-    } catch (e) {
-        console.error("Failed to initialize Supabase:", e.message);
-    }
+    } catch (e) { console.error("Supabase failed:", e.message); }
 }
 
-// --- Tier Logic ---
 function calculateTier(miles) {
     if (miles >= 72000) return "Gold Captain (Elite)";
     if (miles >= 36000) return "Silver Commander";
@@ -53,25 +42,18 @@ function calculateTier(miles) {
     return "White Wing";
 }
 
-// --- Tier Logic ---
-function calculateTier(miles) {
-    if (miles >= 72000) return "Gold Captain (Elite)";
-    if (miles >= 36000) return "Silver Commander";
-    if (miles >= 12000) return "Bronze Aviator";
-    return "White Wing";
+function getLocalDateStr(date) {
+    const d = new Date(date);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
-// --- Auth Functions ---
+// --- Auth & Profile ---
 async function signInWithDiscord() {
-    if (!dbClient) {
-        alert("Authentication service is currently unavailable.");
-        return;
-    }
-    const { error } = await dbClient.auth.signInWithOAuth({
+    if (!dbClient) return;
+    await dbClient.auth.signInWithOAuth({
         provider: 'discord',
         options: { redirectTo: window.location.origin + '/discord/' }
     });
-    if (error) console.error("Login Error:", error.message);
 }
 
 async function handleLogout() {
@@ -83,19 +65,13 @@ async function handleLogout() {
 async function checkUserSession() {
     if (!dbClient) return;
     try {
-        const { data: { session }, error } = await dbClient.auth.getSession();
-        if (error) throw error;
-
+        const { data: { session } } = await dbClient.auth.getSession();
         if (session) {
             const user = session.user;
-            const discordName = user.user_metadata.full_name || user.user_metadata.global_name || user.user_metadata.name || "Virtual Pilot";
+            const discordName = user.user_metadata.full_name || user.user_metadata.global_name || "Virtual Pilot";
             const discordId = user.user_metadata.provider_id || user.id;
 
-            const { data: profile, error: profileError } = await dbClient
-                .from('profiles')
-                .select('mileage_points, business_vouchers, first_vouchers')
-                .eq('id', user.id)
-                .single();
+            const { data: profile } = await dbClient.from('profiles').select('*').eq('id', user.id).single();
 
             if (profileError) console.warn("Profile fetch error (using defaults):", profileError.message);
 
@@ -104,66 +80,47 @@ async function checkUserSession() {
                 id: user.id,
                 discord_id: discordId,
                 username: discordName,
-                tier: calculateTier(miles),
-                miles: miles,
-                avatar: user.user_metadata.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(discordName)}&background=FFC800&color=111625`,
+                tier: calculateTier(profile?.mileage_points || 0),
+                miles: profile?.mileage_points || 0,
+                avatar: user.user_metadata.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(discordName)}`,
                 vouchers: {
                     business: profile?.business_vouchers || 0,
                     first: profile?.first_vouchers || 0
-                }
+                },
+                bookings: []
             };
+            await fetchUserBookings();
             updateAuthUI();
         }
-    } catch (err) {
-        console.error("Session check failed:", err.message);
-    }
+    } catch (err) { console.error("Session failed:", err.message); }
 }
 
-// --- Flight Data & Search ---
+async function fetchUserBookings() {
+    if (!dbClient || !currentUserState.id) return;
+    try {
+        const { data, error } = await dbClient
+            .from('bookings')
+            .select('*, flights(*)')
+            .eq('user_id', currentUserState.id);
+        if (!error) currentUserState.bookings = data;
+    } catch (e) { console.error("Bookings fetch failed:", e.message); }
+}
+
+// --- Flight Data ---
 async function fetchActiveFlightData() {
     if (!dbClient) return;
     try {
-        console.log("Fetching active flights...");
         const { data, error } = await dbClient
             .from('flights')
             .select('departure_airport, destination_airport, event_start');
 
-        if (error) {
-            console.error("Supabase flight fetch error:", error.message);
-            return;
-        }
-
-        if (!data || data.length === 0) {
-            console.warn("No active flights found in the database.");
-            appData.activeFlights = [];
-            appData.airports = [];
-            appData.flightDates = [];
-            return;
-        }
+        if (error || !data) return;
 
         appData.activeFlights = data;
-
-        const airportSet = new Set();
-        data.forEach(f => {
-            if (f.departure_airport) airportSet.add(f.departure_airport);
-            if (f.destination_airport) airportSet.add(f.destination_airport);
-        });
-        appData.airports = Array.from(airportSet).sort();
-
-        const dateSet = new Set();
-        data.forEach(f => {
-            if (f.event_start) {
-                const dateStr = new Date(f.event_start).toISOString().split('T')[0];
-                dateSet.add(dateStr);
-            }
-        });
-        appData.flightDates = Array.from(dateSet);
+        appData.departureAirports = [...new Set(data.map(f => f.departure_airport))].sort();
+        appData.flightDates = [...new Set(data.map(f => getLocalDateStr(f.event_start)))];
         appData.isDataLoaded = true;
-        console.log(`Loaded ${appData.airports.length} airports and ${appData.flightDates.length} flight dates.`);
-
-    } catch (err) {
-        console.error("Critical error fetching flight data:", err.message);
-    }
+    } catch (err) { console.error("Data fetch failed:", err.message); }
 }
 
 function initBookingMask() {
@@ -172,8 +129,8 @@ function initBookingMask() {
     const dateInput = document.getElementById('date-input');
     const searchBtn = document.getElementById('search-flights-btn');
 
-    if (depInput) setupAutocomplete(depInput, 'departure-list');
-    if (arrInput) setupAutocomplete(arrInput, 'arrival-list');
+    if (depInput) setupAutocomplete(depInput, 'departure-list', true);
+    if (arrInput) setupAutocomplete(arrInput, 'arrival-list', false);
     if (dateInput) setupCalendar(dateInput);
 
     if (searchBtn) {
@@ -184,43 +141,57 @@ function initBookingMask() {
     }
 }
 
-function setupAutocomplete(input, listId) {
+function setupAutocomplete(input, listId, isDeparture) {
     const list = document.getElementById(listId);
-
-    const trigger = () => {
-        if (!appData.isDataLoaded) {
-            list.innerHTML = '<div class="autocomplete-item">Loading data...</div>';
-            list.style.display = 'block';
-            return;
-        }
-        renderAutocomplete(input.value, list, input);
-    };
-
+    const trigger = () => renderSmartAutocomplete(input, list, isDeparture);
     input.addEventListener('focus', trigger);
     input.addEventListener('input', trigger);
-
     document.addEventListener('click', (e) => {
-        if (!input.contains(e.target) && !list.contains(e.target)) {
-            list.style.display = 'none';
-        }
+        if (!input.contains(e.target) && !list.contains(e.target)) list.style.display = 'none';
     });
 }
 
-function renderAutocomplete(query, list, input) {
-    const filtered = appData.airports.filter(a => a.toLowerCase().includes(query.toLowerCase()));
-    if (filtered.length > 0) {
-        list.innerHTML = filtered.map(a => `<div class="autocomplete-item">${a}</div>`).join('');
+function renderSmartAutocomplete(input, list, isDeparture) {
+    list.innerHTML = '';
+    if (!appData.isDataLoaded) {
+        const item = document.createElement('div');
+        item.className = 'autocomplete-item';
+        item.textContent = 'Synchronizing...';
+        list.appendChild(item);
         list.style.display = 'block';
-        list.querySelectorAll('.autocomplete-item').forEach(item => {
-            item.onclick = (e) => {
-                e.stopPropagation();
-                input.value = item.textContent;
+        return;
+    }
+
+    let options = [];
+    if (isDeparture) {
+        options = appData.departureAirports;
+    } else {
+        const depVal = document.getElementById('departure-input').value;
+        options = [...new Set(appData.activeFlights.filter(f => f.departure_airport === depVal).map(f => f.destination_airport))];
+    }
+
+    const query = input.value.toLowerCase();
+    const filtered = options.filter(o => o.toLowerCase().includes(query)).sort();
+
+    if (filtered.length > 0) {
+        filtered.forEach(o => {
+            const item = document.createElement('div');
+            item.className = 'autocomplete-item';
+            item.textContent = o;
+            item.onclick = () => {
+                input.value = o;
                 list.style.display = 'none';
+                if (isDeparture) document.getElementById('arrival-input').value = '';
             };
+            list.appendChild(item);
         });
     } else {
-        list.style.display = 'none';
+        const item = document.createElement('div');
+        item.className = 'autocomplete-item empty-state';
+        item.textContent = isDeparture ? "No scheduled departures" : "No available destinations";
+        list.appendChild(item);
     }
+    list.style.display = 'block';
 }
 
 function setupCalendar(input) {
@@ -231,261 +202,287 @@ function setupCalendar(input) {
         picker.style.display = picker.style.display === 'block' ? 'none' : 'block';
         renderCalendar(currentMonth, picker, input);
     };
-    document.addEventListener('click', (e) => {
-        if (!input.contains(e.target) && !picker.contains(e.target)) {
-            picker.style.display = 'none';
-        }
-    });
 }
 
 function renderCalendar(date, container, input) {
     const year = date.getFullYear();
     const month = date.getMonth();
-    const firstDay = new Date(year, month, 1).getDay();
     const daysInMonth = new Date(year, month + 1, 0).getDate();
-    const monthName = date.toLocaleString('default', { month: 'long' });
+    const firstDay = new Date(year, month, 1).getDay();
 
-    let html = `
-        <div class="calendar-header">
-            <button id="prev-month" type="button">&lt;</button>
-            <span>${monthName} ${year}</span>
-            <button id="next-month" type="button">&gt;</button>
-        </div>
-        <div class="calendar-grid">
-            <div class="calendar-weekday">Su</div><div class="calendar-weekday">Mo</div>
-            <div class="calendar-weekday">Tu</div><div class="calendar-weekday">We</div>
-            <div class="calendar-weekday">Th</div><div class="calendar-weekday">Fr</div>
-            <div class="calendar-weekday">Sa</div>
-    `;
+    container.innerHTML = '';
+    const header = document.createElement('div');
+    header.className = 'calendar-header';
+    header.innerHTML = `<button type="button" id="prev-m">&lt;</button><span>${date.toLocaleString('en', {month:'long'})} ${year}</span><button type="button" id="next-m">&gt;</button>`;
+    container.appendChild(header);
 
-    for (let i = 0; i < firstDay; i++) html += '<div class="calendar-day empty"></div>';
-    for (let d = 1; d <= daysInMonth; d++) {
-        const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-        const hasFlight = appData.flightDates.includes(dateStr);
-        const isSelected = appData.selectedDate === dateStr;
-        html += `<div class="calendar-day ${hasFlight ? 'has-flight' : ''} ${isSelected ? 'selected' : ''}" data-date="${dateStr}">${d}</div>`;
-    }
-    html += '</div>';
-    container.innerHTML = html;
-
-    container.querySelector('#prev-month').onclick = (e) => {
-        e.stopPropagation();
-        date.setMonth(date.getMonth() - 1);
-        renderCalendar(date, container, input);
-    };
-    container.querySelector('#next-month').onclick = (e) => {
-        e.stopPropagation();
-        date.setMonth(date.getMonth() + 1);
-        renderCalendar(date, container, input);
-    };
-    container.querySelectorAll('.calendar-day:not(.empty)').forEach(day => {
-        day.onclick = (e) => {
-            e.stopPropagation();
-            appData.selectedDate = day.dataset.date;
-            input.value = appData.selectedDate;
-            container.style.display = 'none';
-        };
+    const grid = document.createElement('div');
+    grid.className = 'calendar-grid';
+    ["Su","Mo","Tu","We","Th","Fr","Sa"].forEach(d => {
+        const div = document.createElement('div');
+        div.className = 'calendar-weekday';
+        div.textContent = d;
+        grid.appendChild(div);
     });
 }
 
+    for(let i=0; i<firstDay; i++) {
+        const div = document.createElement('div');
+        div.className = 'calendar-day empty';
+        grid.appendChild(div);
+    }
+
+    for(let d=1; d<=daysInMonth; d++) {
+        const ds = `${year}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+        const div = document.createElement('div');
+        div.className = `calendar-day ${appData.flightDates.includes(ds)?'has-flight':''} ${appData.selectedDate===ds?'selected':''}`;
+        div.dataset.date = ds;
+        div.textContent = d;
+        div.onclick = () => { appData.selectedDate = ds; input.value = ds; container.style.display = 'none'; };
+        grid.appendChild(div);
+    }
+    container.appendChild(grid);
+
+    container.querySelector('#prev-m').onclick = (e) => { e.stopPropagation(); date.setMonth(month-1); renderCalendar(date, container, input); };
+    container.querySelector('#next-m').onclick = (e) => { e.stopPropagation(); date.setMonth(month+1); renderCalendar(date, container, input); };
+}
+
+// --- Search & Display ---
 async function performSearch(dep, arr, date) {
-    if (!dep || !arr || !date) {
-        alert("Please select departure, destination, and date.");
-        return;
-    }
-    const resultsSection = document.getElementById('flight-results');
+    if (!dep || !arr || !date) return alert("Please complete the booking form.");
     const container = document.getElementById('flights-container');
-
-    if (!dbClient) {
-        container.innerHTML = '<p style="text-align:center;">Database connection unavailable. Please try again later.</p>';
-        return;
-    }
-
-    resultsSection.style.display = 'block';
-    container.innerHTML = '<div class="loading-spinner" style="text-align:center; padding: 40px;">Searching for available flights...</div>';
-    window.scrollTo({ top: resultsSection.offsetTop - 100, behavior: 'smooth' });
+    document.getElementById('flight-results').style.display = 'block';
+    container.innerHTML = '<div style="text-align:center; padding:40px;">Searching premium connections...</div>';
 
     try {
-        const { data, error } = await dbClient
-            .from('flights')
-            .select('*')
-            .eq('departure_airport', dep)
-            .eq('destination_airport', arr);
-
-        if (error) throw error;
-
-        if (!data || data.length === 0) {
-            container.innerHTML = '<p style="text-align:center; padding: 40px;">No flights found for this route.</p>';
-            return;
-        }
-
-        // Filter by date strictly
-        const filtered = data.filter(f => {
-            if (!f.event_start) return false;
-            return new Date(f.event_start).toISOString().split('T')[0] === date;
-        });
+        const { data } = await dbClient.from('flights').select('*').eq('departure_airport', dep).eq('destination_airport', arr);
+        const filtered = (data || []).filter(f => getLocalDateStr(f.event_start) === date);
 
         if (filtered.length === 0) {
-            container.innerHTML = '<p style="text-align:center; padding: 40px;">No flights found for the selected date.</p>';
+            container.innerHTML = '<p style="text-align:center; padding:40px;">No flights found for this route and date.</p>';
             return;
         }
         renderFlightResults(filtered, container);
-    } catch (err) {
-        console.error("Search failed:", err.message);
-        container.innerHTML = `<p style="text-align:center; padding: 40px;">Error loading flights: ${err.message}</p>`;
-    }
+    } catch (e) { container.innerHTML = '<p>Search error.</p>'; }
 }
 
 function renderFlightResults(flights, container) {
-    container.innerHTML = flights.map(flight => {
-        const start = new Date(flight.event_start);
-        const end = new Date(flight.event_end);
-        const durationMs = end - start;
-        const hours = Math.floor(durationMs / (1000 * 60 * 60));
-        const minutes = Math.floor((durationMs % (1000 * 60 * 60)) / (1000 * 60));
-        const localStartTime = start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-        const localEndTime = end.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    container.innerHTML = '';
+    flights.forEach(f => {
+        const card = document.createElement('div');
+        card.className = 'flight-card';
+        card.id = `flight-${f.flight_number}`;
 
-        let codeshareInfo = flight.is_codeshare ?
-            `Operated by <a href="${flight.codeshare_discord_link}" target="_blank" class="codeshare-link">${flight.codeshare_airline}</a>` :
-            "Operated by Doncor Wings";
+        let depTime = new Date(f.event_start);
+        let arrTime = new Date(f.event_end);
+        let depStr = depTime.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+        let arrStr = arrTime.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
 
-        return `
-            <div class="flight-card" id="flight-${flight.flight_number}">
-                <div class="flight-main">
-                    <div class="flight-route">
-                        <div class="route-point"><div class="route-time">${localStartTime}</div><div class="route-airport">${flight.departure_airport}</div></div>
-                        <div class="route-arrow"></div>
-                        <div class="route-point"><div class="route-time">${localEndTime}</div><div class="route-airport">${flight.destination_airport}</div></div>
-                    </div>
-                    <div class="flight-duration">Total duration: ${hours}h ${minutes}m</div>
-                    <div class="flight-details">
-                        <div class="detail-item"><strong>Aircraft</strong>${flight.aircraft_type}</div>
-                        <div class="detail-item"><strong>Flight No.</strong>${flight.flight_number}</div>
-                        <div class="detail-item"><strong>Carrier</strong>${codeshareInfo}</div>
-                    </div>
-                    <div class="legal-disclaimer-small">Doncor Wings PTFS is a fictional roleplay community for Roblox. This is a virtual flight; no real-world tickets or monetary transactions are involved.</div>
-                </div>
-                <div class="booking-options">${renderBookingPanel(flight)}</div>
-            </div>
-        `;
-    }).join('');
-}
+        const main = document.createElement('div');
+        main.className = 'flight-main';
 
-function renderBookingPanel(flight) {
-    if (!currentUserState.id) {
-        return `
-            <div class="login-to-book">
-                <p>Login via Discord to Book</p>
-                <button class="btn btn-primary btn-sm" onclick="signInWithDiscord()">Sign In</button>
-            </div>
-        `;
-    }
-    const { tier, vouchers } = currentUserState;
+        const route = document.createElement('div');
+        route.className = 'flight-route';
 
-    const busDisabled = !(tier.includes("Silver") || tier.includes("Gold") || (tier.includes("Bronze") && vouchers.business > 0));
-    const firstDisabled = !(tier.includes("Gold") || (tier.includes("Silver") && vouchers.first > 0));
+        const createPoint = (time, airport, isDelayed, origTime) => {
+            const pt = document.createElement('div');
+            pt.className = 'route-point';
+            const tDiv = document.createElement('div');
+            tDiv.className = 'route-time';
+            if (isDelayed) {
+                const s1 = document.createElement('span'); s1.className = 'delayed-orig'; s1.textContent = origTime;
+                const s2 = document.createElement('span'); s2.className = 'delayed-new'; s2.textContent = time;
+                tDiv.appendChild(s1); tDiv.appendChild(document.createTextNode(' ')); tDiv.appendChild(s2);
+            } else {
+                tDiv.textContent = time;
+            }
+            const aDiv = document.createElement('div'); aDiv.className = 'route-airport'; aDiv.textContent = airport;
+            pt.appendChild(tDiv); pt.appendChild(aDiv);
+            return pt;
+        };
 
-    const busStatus = tier.includes("Silver") || tier.includes("Gold") ? "Included" : (tier.includes("Bronze") && vouchers.business > 0 ? `Use Voucher (${vouchers.business})` : "Tier Locked");
-    const firstStatus = tier.includes("Gold") ? "Included" : (tier.includes("Silver") && vouchers.first > 0 ? `Use Voucher (${vouchers.first})` : "Tier Locked");
-
-    return `
-        <div class="booking-block">
-            <div class="block-info"><h4>Economy</h4><p>Standard Virtual Seat</p></div>
-            <button class="btn btn-primary btn-sm" onclick="bookFlight('${flight.flight_number}', 'Economy', false)">Book Now</button>
-        </div>
-        <div class="booking-block ${busDisabled ? 'locked' : ''}">
-            <div class="block-info"><h4>Business Class</h4><p>${busStatus}</p></div>
-            ${!busDisabled ? `<button class="btn btn-outline btn-sm" onclick="bookFlight('${flight.flight_number}', 'Business', ${tier.includes('Bronze')})">Book Seat</button>` : ''}
-        </div>
-        <div class="booking-block ${firstDisabled ? 'locked' : ''}">
-            <div class="block-info"><h4>First Class</h4><p>${firstStatus}</p></div>
-            ${!firstDisabled ? `<button class="btn btn-outline btn-sm" onclick="bookFlight('${flight.flight_number}', 'First', ${tier.includes('Silver')})">Book Seat</button>` : ''}
-        </div>
-    `;
-}
-
-async function bookFlight(flightNumber, bookingClass, useVoucher) {
-    if (!dbClient || !currentUserState.id) return;
-    try {
-        const { error } = await dbClient.from('bookings').insert([{
-            flight_number: flightNumber,
-            user_id: currentUserState.id,
-            discord_id: currentUserState.discord_id,
-            username: currentUserState.username,
-            booking_class: bookingClass,
-            used_voucher: useVoucher,
-            checked_in: false,
-            miles_claimed: false
-        }]);
-        if (error) throw error;
-
-        if (useVoucher) {
-            const field = bookingClass === 'Business' ? 'business_vouchers' : 'first_vouchers';
-            const val = (bookingClass === 'Business' ? currentUserState.vouchers.business : currentUserState.vouchers.first) - 1;
-            await dbClient.from('profiles').update({ [field]: val }).eq('id', currentUserState.id);
-            if (bookingClass === 'Business') currentUserState.vouchers.business = val;
-            else currentUserState.vouchers.first = val;
+        let isDel = f.is_delayed && f.original_start;
+        let origDepStr = '', origArrStr = '';
+        if (isDel) {
+            const origDep = new Date(f.original_start);
+            const offset = depTime - origDep;
+            const origArr = new Date(new Date(f.event_end) - offset);
+            origDepStr = origDep.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+            origArrStr = origArr.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
         }
 
-        const card = document.getElementById(`flight-${flightNumber}`);
-        if (card) {
-            card.innerHTML = `
-                <div class="success-card" style="grid-column: 1 / -1; width: 100%;">
-                    <div class="success-icon">✓</div>
-                    <h2>Booking Successful!</h2>
-                    <p>A confirmation has been sent to your Discord DMs. Your ${bookingClass} seat is confirmed.</p>
-                    <button class="btn btn-outline btn-sm" style="margin-top: 20px;" onclick="location.reload()">Back to Search</button>
-                </div>
-            `;
-        }
-    } catch (err) {
-        console.error("Booking failed:", err.message);
-        alert("Booking failed: " + err.message);
-    }
-}
+        route.appendChild(createPoint(depStr, f.departure_airport, isDel, origDepStr));
+        const arrow = document.createElement('div'); arrow.className = 'route-arrow'; route.appendChild(arrow);
+        route.appendChild(createPoint(arrStr, f.destination_airport, isDel, origArrStr));
+        main.appendChild(route);
 
-// --- Stats Animation ---
-function animateStats() {
-    const stats = document.querySelectorAll('.stat-number');
-    stats.forEach(stat => {
-        const target = +stat.getAttribute('data-target');
-        const suffix = stat.getAttribute('data-suffix') || "";
-        const duration = 2000;
-        let startTime = null;
-        function step(timestamp) {
-            if (!startTime) startTime = timestamp;
-            const progress = Math.min((timestamp - startTime) / duration, 1);
-            stat.innerText = Math.floor(progress * target) + suffix;
-            if (progress < 1) requestAnimationFrame(step);
-        }
-        requestAnimationFrame(step);
+        const dur = Math.floor((arrTime - depTime)/60000);
+        const durDiv = document.createElement('div'); durDiv.className = 'flight-duration';
+        durDiv.textContent = `Duration: ${Math.floor(dur/60)}h ${dur%60}m`;
+        main.appendChild(durDiv);
+
+        const details = document.createElement('div'); details.className = 'flight-details';
+        const createDetail = (label, value, isLink, linkUrl) => {
+            const d = document.createElement('div'); d.className = 'detail-item';
+            const s = document.createElement('strong'); s.textContent = label; d.appendChild(s);
+            if (isLink) {
+                const a = document.createElement('a'); a.href = linkUrl; a.target = '_blank'; a.className = 'codeshare-link'; a.textContent = value;
+                d.appendChild(a);
+            } else {
+                d.appendChild(document.createTextNode(value));
+            }
+            return d;
+        };
+        details.appendChild(createDetail('Aircraft', f.aircraft_type));
+        details.appendChild(createDetail('Carrier', f.is_codeshare ? f.codeshare_airline : 'Doncor Wings', f.is_codeshare, f.codeshare_discord_link));
+        main.appendChild(details);
+
+        const legal = document.createElement('div'); legal.className = 'legal-disclaimer-small';
+        legal.textContent = 'Fictional Roblox RP flight. No real-world transactions.';
+        main.appendChild(legal);
+        card.appendChild(main);
+
+        const options = document.createElement('div');
+        options.className = 'booking-options';
+        const classes = f.available_classes || ['Economy'];
+        ['Economy', 'Business', 'First'].forEach(cls => {
+            if (classes.includes(cls)) options.appendChild(renderBlock(f, cls));
+        });
+        card.appendChild(options);
+        container.appendChild(card);
     });
 }
 
-// --- Auth UI & Dropdown ---
+function renderBlock(f, cls) {
+    const block = document.createElement('div');
+    block.className = 'booking-block';
+    if (!currentUserState.id) {
+        const btn = document.createElement('button'); btn.className = 'btn btn-primary btn-sm'; btn.textContent = 'Sign In to Book';
+        btn.onclick = signInWithDiscord;
+        block.appendChild(btn);
+        return block;
+    }
+
+    const { tier, vouchers } = currentUserState;
+    const isLocked = (cls === 'Business' && !(tier.includes('Silver') || tier.includes('Gold') || (tier.includes('Bronze') && vouchers.business > 0))) ||
+                     (cls === 'First' && !(tier.includes('Gold') || (tier.includes('Silver') && vouchers.first > 0)));
+
+    if (isLocked) block.classList.add('locked');
+    const info = document.createElement('div'); info.className = 'block-info';
+    const h4 = document.createElement('h4'); h4.textContent = cls; info.appendChild(h4);
+    const p = document.createElement('p'); p.textContent = cls === 'Economy' ? 'Standard Seat' : (isLocked ? 'Tier Locked' : 'Available');
+    info.appendChild(p); block.appendChild(info);
+
+    if (!isLocked) {
+        const btn = document.createElement('button'); btn.className = 'btn btn-primary btn-sm'; btn.textContent = 'Book';
+        const useVoucher = (cls === 'Business' && tier.includes('Bronze')) || (cls === 'First' && tier.includes('Silver'));
+        btn.onclick = () => bookFlight(f.flight_number, cls, useVoucher);
+        block.appendChild(btn);
+    }
+    return block;
+}
+
+async function bookFlight(fn, cls, v) {
+    try {
+        const { error } = await dbClient.from('bookings').insert([{
+            flight_number: fn, user_id: currentUserState.id, discord_id: currentUserState.discord_id,
+            username: currentUserState.username, booking_class: cls, used_voucher: v
+        }]);
+        if (error) throw error;
+
+        if (v) {
+            const field = cls === 'Business' ? 'business_vouchers' : 'first_vouchers';
+            await dbClient.from('profiles').update({ [field]: currentUserState.vouchers[cls.toLowerCase()] - 1 }).eq('id', currentUserState.id);
+        }
+
+        const card = document.getElementById(`flight-${fn}`);
+        card.innerHTML = '';
+        const success = document.createElement('div'); success.className = 'success-card';
+        const h2 = document.createElement('h2'); h2.textContent = 'Booking Successful!'; success.appendChild(h2);
+        const p = document.createElement('p'); p.textContent = `A confirmation has been sent to your Discord DMs. Your ${cls} seat is locked in.`;
+        success.appendChild(p); card.appendChild(success);
+
+        await fetchUserBookings();
+        updateAuthUI();
+    } catch (e) { alert("Booking error."); }
+}
+
+async function cancelBooking(id) {
+    if (!confirm("Cancel this flight?")) return;
+    try {
+        const { error } = await dbClient.from('bookings').delete().eq('id', id);
+        if (!error) {
+            await fetchUserBookings();
+            updateAuthUI();
+        }
+    } catch (e) { console.error("Cancel failed."); }
+}
+
+// --- UI Logic ---
 function updateAuthUI() {
-    const loginBtn = document.getElementById('login-btn');
     const userProfile = document.getElementById('user-profile');
-    if (userProfile && loginBtn) {
+    const loginBtn = document.getElementById('login-btn');
+    if (userProfile && currentUserState.id) {
         loginBtn.style.display = 'none';
         userProfile.style.display = 'flex';
-
-        const nameEl = userProfile.querySelector('#user-name');
-        const statsEl = userProfile.querySelector('#user-stats');
-        const avatarEl = userProfile.querySelector('img');
-
-        if (nameEl) nameEl.innerText = currentUserState.username;
-        if (statsEl) statsEl.innerText = `Tier: ${currentUserState.tier} | ${currentUserState.miles.toLocaleString()} Miles`;
-        if (avatarEl && currentUserState.avatar) avatarEl.src = currentUserState.avatar;
-
-        userProfile.classList.remove('status-silver', 'status-gold', 'status-bronze');
-        const tierLower = currentUserState.tier.toLowerCase();
-        if (tierLower.includes('silver')) userProfile.classList.add('status-silver');
-        else if (tierLower.includes('gold')) userProfile.classList.add('status-gold');
-        else if (tierLower.includes('bronze')) userProfile.classList.add('status-bronze');
+        userProfile.querySelector('#user-name').textContent = currentUserState.username;
+        userProfile.querySelector('#user-stats').textContent = `${currentUserState.tier} | ${currentUserState.miles.toLocaleString()} Miles`;
+        userProfile.querySelector('img').src = currentUserState.avatar;
         setupUserDropdown(userProfile);
     }
+}
+
+function setupUserDropdown(el) {
+    const newEl = el.cloneNode(true);
+    el.parentNode.replaceChild(newEl, el);
+    newEl.onclick = (e) => {
+        e.stopPropagation();
+        const existing = document.getElementById('user-dropdown');
+        if (existing) existing.remove();
+        else renderProfileDropdown(newEl);
+    };
+}
+
+function renderProfileDropdown(parent) {
+    const dropdown = document.createElement('div');
+    dropdown.id = 'user-dropdown';
+    dropdown.className = 'user-dropdown-menu';
+
+    const header = document.createElement('div'); header.className = 'dropdown-header';
+    const strong = document.createElement('strong'); strong.textContent = currentUserState.username; header.appendChild(strong);
+    header.appendChild(document.createElement('br'));
+    const small = document.createElement('small'); small.textContent = currentUserState.tier; header.appendChild(small);
+    dropdown.appendChild(header);
+
+    const div1 = document.createElement('div'); div1.className = 'dropdown-divider'; dropdown.appendChild(div1);
+
+    const info = document.createElement('div'); info.className = 'dropdown-info';
+    const s2 = document.createElement('strong'); s2.textContent = 'My Bookings'; info.appendChild(s2);
+    const list = document.createElement('div'); list.className = 'bookings-list-mini';
+
+    if (currentUserState.bookings.length) {
+        currentUserState.bookings.forEach(b => {
+            const item = document.createElement('div'); item.className = 'booking-item-mini';
+            const txt = document.createElement('div'); txt.innerHTML = `<strong>${b.flights.departure_airport} ➔ ${b.flights.destination_airport}</strong><br><small>${b.booking_class}</small>`;
+            item.appendChild(txt);
+            const btn = document.createElement('button'); btn.className = 'cancel-link'; btn.textContent = 'Cancel';
+            btn.onclick = (e) => { e.stopPropagation(); cancelBooking(b.id); };
+            item.appendChild(btn);
+            list.appendChild(item);
+        });
+    } else {
+        const p = document.createElement('p'); p.className = 'empty-state'; p.textContent = 'No active bookings';
+        list.appendChild(p);
+    }
+    info.appendChild(list); dropdown.appendChild(info);
+
+    const div2 = document.createElement('div'); div2.className = 'dropdown-divider'; dropdown.appendChild(div2);
+
+    const logout = document.createElement('button'); logout.className = 'dropdown-item logout-btn'; logout.textContent = 'Logout';
+    logout.onclick = handleLogout; dropdown.appendChild(logout);
+
+    parent.appendChild(dropdown);
+    document.addEventListener('click', (e) => { if(!dropdown.contains(e.target)) dropdown.remove(); }, {once:true});
 }
 
 function setupUserDropdown(profileElement) {
@@ -524,59 +521,31 @@ function renderDropdown(parent) {
 // --- Initialize ---
 document.addEventListener('DOMContentLoaded', async () => {
     initSupabase();
-
-    // Run async checks
     await checkUserSession();
     await fetchActiveFlightData();
-
     initBookingMask();
 
-    // Global Login Listeners (Excluding header button which is handled by updateAuthUI if needed, but the original logic attached it to all)
-    const loginBtns = document.querySelectorAll('#login-btn, .btn-primary');
-    loginBtns.forEach(btn => {
-        if (btn.id === 'search-flights-btn') return; // Skip search button
-        btn.addEventListener('click', (e) => {
-            const text = btn.innerText.toLowerCase();
-            if (text.includes('discord') || btn.id === 'login-btn' || text.includes('sign in')) {
-                if (btn.getAttribute('href') === '#' || !btn.getAttribute('href') || btn.tagName === 'BUTTON') {
-                    e.preventDefault();
-                    signInWithDiscord();
-                }
-            }
-        });
-    });
-
-    // Stats Animation Intersection Observer
     const statsGrid = document.querySelector('.stats-grid') || document.querySelector('.tiers-grid');
     if (statsGrid) {
-        const observer = new IntersectionObserver((entries) => {
+        new IntersectionObserver((entries, observer) => {
             if (entries[0].isIntersecting) {
-                animateStats();
+                document.querySelectorAll('.stat-number').forEach(s => {
+                    const target = +s.dataset.target;
+                    let count = 0;
+                    const update = () => {
+                        count += Math.ceil(target/50);
+                        if (count < target) { s.textContent = count.toLocaleString() + (s.dataset.suffix || ''); requestAnimationFrame(update); }
+                        else s.textContent = target.toLocaleString() + (s.dataset.suffix || '');
+                    };
+                    update();
+                });
                 observer.disconnect();
             }
-        });
-        observer.observe(statsGrid);
+        }).observe(statsGrid);
     }
-
-    // Mobile Menu
-    const toggle = document.getElementById('mobile-toggle');
-    const nav = document.getElementById('nav-menu');
-    if (toggle && nav) {
-        toggle.onclick = () => { toggle.classList.toggle('active'); nav.classList.toggle('active'); };
-        nav.querySelectorAll('a').forEach(l => l.onclick = () => { toggle.classList.remove('active'); nav.classList.remove('active'); });
-    }
-
-    // Smooth Scroll
-    document.querySelectorAll('a[href^="#"]').forEach(anchor => {
-        anchor.onclick = function(e) {
-            const href = this.getAttribute('href');
-            if (href === '#' || href === '') { e.preventDefault(); window.scrollTo({ top: 0, behavior: 'smooth' }); return; }
-            const target = document.querySelector(href);
-            if (target) { e.preventDefault(); target.scrollIntoView({ behavior: 'smooth' }); }
-        };
-    });
 });
 
-// Expose globally
 window.signInWithDiscord = signInWithDiscord;
 window.bookFlight = bookFlight;
+window.cancelBooking = cancelBooking;
+window.handleLogout = handleLogout;

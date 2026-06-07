@@ -586,6 +586,18 @@ nav ul li a:hover {
     text-decoration: underline;
 }
 
+.delayed-orig {
+    text-decoration: line-through;
+    color: #7f8c8d;
+    font-size: 0.8em;
+    margin-right: 8px;
+}
+
+.delayed-new {
+    color: #e74c3c;
+    font-weight: 700;
+}
+
 .legal-disclaimer-small {
     margin-top: 30px;
     font-size: 0.65rem;
@@ -654,6 +666,44 @@ nav ul li a:hover {
     align-items: center;
     text-align: center;
     gap: 15px;
+}
+
+.bookings-list-mini {
+    margin-top: 10px;
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+.booking-item-mini {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px;
+    background: rgba(255, 255, 255, 0.03);
+    border-radius: 6px;
+    margin-bottom: 8px;
+    font-size: 0.8rem;
+}
+
+.cancel-link {
+    background: transparent;
+    border: none;
+    color: #e74c3c;
+    font-size: 0.7rem;
+    font-weight: 700;
+    cursor: pointer;
+    text-transform: uppercase;
+}
+
+.cancel-link:hover {
+    text-decoration: underline;
+}
+
+.empty-state {
+    color: var(--text-muted);
+    font-size: 0.8rem;
+    font-style: italic;
+    padding: 10px 0;
 }
 
 /* Success Card */

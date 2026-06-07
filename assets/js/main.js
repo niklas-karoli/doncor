@@ -457,9 +457,17 @@ function updateAuthUI() {
         if (statsEl) statsEl.textContent = `${currentUserState.tier} | ${currentUserState.miles.toLocaleString()} Miles`;
         if (avatarEl) avatarEl.src = currentUserState.avatar;
 
-        setupUserDropdown(userProfile);
+    if (depInput) setupAutocomplete(depInput, 'departure-list', true);
+    if (arrInput) setupAutocomplete(arrInput, 'arrival-list', false);
+    if (dateInput) setupCalendar(dateInput);
+
+    if (searchBtn) {
+        searchBtn.onclick = (e) => {
+            e.preventDefault();
+            performSearch(depInput.value, arrInput.value, appData.selectedDate);
+        };
     }
-}
+    info.appendChild(list); dropdown.appendChild(info);
 
 function setupUserDropdown(el) {
     const newEl = el.cloneNode(true);
@@ -542,7 +550,19 @@ function initMobileMenu() {
                 menu.classList.remove('active');
             };
         });
+    } else {
+        const p = document.createElement('p'); p.className = 'empty-state'; p.textContent = 'No active bookings';
+        list.appendChild(p);
     }
+    info.appendChild(list); dropdown.appendChild(info);
+
+    const div2 = document.createElement('div'); div2.className = 'dropdown-divider'; dropdown.appendChild(div2);
+
+    const logout = document.createElement('button'); logout.className = 'dropdown-item logout-btn'; logout.textContent = 'Logout';
+    logout.onclick = handleLogout; dropdown.appendChild(logout);
+
+    parent.appendChild(dropdown);
+    document.addEventListener('click', (e) => { if(!dropdown.contains(e.target)) dropdown.remove(); }, {once:true});
 }
 
 // --- Initialize ---

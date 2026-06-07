@@ -135,9 +135,6 @@ header .container {
 .logo {
     display: flex;
     align-items: center;
-    font-weight: 700;
-    font-size: 1.2rem;
-    letter-spacing: 1px;
     color: var(--white);
     font-family: 'Montserrat', sans-serif;
 }
@@ -146,6 +143,26 @@ header .container {
     margin-right: 12px;
     width: 40px;
     height: 40px;
+}
+
+.logo-text {
+    display: flex;
+    flex-direction: column;
+    line-height: 1.1;
+}
+
+.logo-text .main-line {
+    font-weight: 700;
+    font-size: 1.3rem;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+}
+
+.logo-text .sub-line {
+    font-weight: 400;
+    font-size: 0.75rem;
+    color: #cbd5e0;
+    letter-spacing: 0.5px;
 }
 
 nav {
@@ -753,6 +770,77 @@ nav ul li a:hover {
     font-size: 0.8rem;
     font-style: italic;
     padding: 10px 0;
+}
+
+/* Highlight */
+.highlight {
+    color: var(--accent-yellow);
+    font-weight: 700;
+}
+
+/* Custom Modal */
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(11, 22, 37, 0.85);
+    backdrop-filter: blur(8px);
+    display: none; /* Controlled by JS */
+    align-items: center;
+    justify-content: center;
+    z-index: 2000;
+}
+
+.modal-content {
+    background: var(--bg-dark);
+    width: 100%;
+    max-width: 450px;
+    border-radius: 12px;
+    overflow: hidden;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7);
+    animation: modalSlideUp 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@keyframes modalSlideUp {
+    from { opacity: 0; transform: translateY(30px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.modal-hazard {
+    height: 5px;
+    background: repeating-linear-gradient(45deg, var(--accent-yellow), var(--accent-yellow) 10px, var(--bg-dark) 10px, var(--bg-dark) 20px);
+}
+
+.modal-body {
+    padding: 40px;
+    text-align: center;
+}
+
+.modal-body h3 {
+    font-family: 'Montserrat', sans-serif;
+    font-size: 1.5rem;
+    margin-bottom: 15px;
+    color: var(--white);
+}
+
+.modal-body p {
+    color: var(--text-muted);
+    margin-bottom: 30px;
+    font-size: 1rem;
+}
+
+.modal-actions {
+    display: flex;
+    gap: 15px;
+    justify-content: center;
+}
+
+.btn-sm {
+    padding: 10px 20px;
+    font-size: 0.8rem;
 }
 
 /* Success Card */

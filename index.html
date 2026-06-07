@@ -18,7 +18,10 @@
                     <path d="M10 50 L40 20 L90 20 L50 50 L90 80 L40 80 Z" fill="#FFC800"/>
                     <path d="M20 50 L45 35 L75 35 L50 50 L75 65 L45 65 Z" fill="#ffffff" opacity="0.8"/>
                 </svg>
-                DONCOR WINGS PTFS
+                <div class="logo-text">
+                    <span class="main-line">DONCOR WINGS</span>
+                    <span class="sub-line">by DONCOR AIRLINE</span>
+                </div>
             </a>
 
             <nav>
@@ -135,7 +138,7 @@
         <div class="container">
             <h2 class="section-title">Mileage Program: <span>Doncor Wings</span></h2>
             <div style="text-align: center; margin-bottom: 50px; color: var(--text-muted);">
-                Earn 10 <span>Doncor Wings</span> per minute of virtual airtime and unlock exclusive tier ranks, booking privileges, and upgrade vouchers.
+                Earn 10 <span class="highlight">Doncor Wings</span> per minute of virtual airtime and unlock exclusive tier ranks, booking privileges, and upgrade vouchers.
             </div>
 
             <div class="tiers-grid">
@@ -197,7 +200,7 @@
                 <div class="card">
                     <div class="card-img" style="background-image: url('assets/aircrafts/320.png');"></div>
                     <div class="card-body">
-                        <h3>Airbus A320</h3>
+                        <h3>Airbus A<span class="highlight">320</span></h3>
                         <p>The highly efficient short-to-medium haul workhorse for our daily regional virtual RP routes.</p>
                     </div>
                 </div>
@@ -205,7 +208,7 @@
                 <div class="card">
                     <div class="card-img" style="background-image: url('assets/aircrafts/330.png');"></div>
                     <div class="card-body">
-                        <h3>Airbus A330</h3>
+                        <h3>Airbus A<span class="highlight">330</span></h3>
                         <p>Our modern widebody flagship, delivering exceptional comfort on high-demand virtual long-haul sectors.</p>
                     </div>
                 </div>
@@ -213,7 +216,7 @@
                 <div class="card">
                     <div class="card-img" style="background-image: url('assets/aircrafts/757.png');"></div>
                     <div class="card-body">
-                        <h3>Boeing 757</h3>
+                        <h3>Boeing <span class="highlight">757</span></h3>
                         <p>The "Flying Pencil" – legendary for its incredible rocket-like takeoff performance out of tight virtual airfields.</p>
                     </div>
                 </div>
@@ -221,7 +224,7 @@
                 <div class="card">
                     <div class="card-img" style="background-image: url('assets/aircrafts/767.png');"></div>
                     <div class="card-body">
-                        <h3>Boeing 767</h3>
+                        <h3>Boeing <span class="highlight">767</span></h3>
                         <p>A reliable transatlantic heavy, bridging international networks with premium cabin layouts.</p>
                     </div>
                 </div>
@@ -229,7 +232,7 @@
                 <div class="card">
                     <div class="card-img" style="background-image: url('assets/aircrafts/737.png');"></div>
                     <div class="card-body">
-                        <h3>Boeing 737</h3>
+                        <h3>Boeing <span class="highlight">737</span></h3>
                         <p>The classic, agile twin-jet. Perfect for standard flight operations and versatile hub-to-hub connections.</p>
                     </div>
                 </div>
@@ -237,7 +240,7 @@
                 <div class="card">
                     <div class="card-img" style="background-image: url('assets/aircrafts/747.png');"></div>
                     <div class="card-body">
-                        <h3>Boeing 747</h3>
+                        <h3>Boeing <span class="highlight">747</span></h3>
                         <p>The majestic "Queen of the Skies". An iconic double-decker powerhouse for ultimate prestige virtual travel.</p>
                     </div>
                 </div>
@@ -245,7 +248,7 @@
                 <div class="card">
                     <div class="card-img" style="background-image: url('assets/aircrafts/707.png');"></div>
                     <div class="card-body">
-                        <h3>Boeing 707</h3>
+                        <h3>Boeing <span class="highlight">707</span></h3>
                         <p>A beautiful vintage jetliner that brought dawn to the jet age. Bringing classic retro flair to our roleplays.</p>
                     </div>
                 </div>
@@ -253,7 +256,7 @@
                 <div class="card">
                     <div class="card-img" style="background-image: url('assets/aircrafts/727.png');"></div>
                     <div class="card-body">
-                        <h3>Boeing 727</h3>
+                        <h3>Boeing <span class="highlight">727</span></h3>
                         <p>An iconic tri-jet with distinctive T-tail styling, providing unparalleled retro performance on unique regional routes.</p>
                     </div>
                 </div>
@@ -270,7 +273,10 @@
                         <path d="M10 50 L40 20 L90 20 L50 50 L90 80 L40 80 Z" fill="#FFC800"/>
                         <path d="M20 50 L45 35 L75 35 L50 50 L75 65 L45 65 Z" fill="#ffffff" opacity="0.8"/>
                     </svg>
-                    DONCOR WINGS by DONCOR AIRLINE PTFS
+                    <div class="logo-text">
+                        <span class="main-line">DONCOR WINGS</span>
+                        <span class="sub-line">by DONCOR AIRLINE</span>
+                    </div>
                 </div>
             </div>
             <div class="hazard-line" style="max-width: 200px; margin: 0 auto;"></div>
@@ -279,6 +285,21 @@
             </p>
         </div>
     </footer>
+
+    <!-- Custom Modal -->
+    <div id="custom-modal" class="modal-overlay">
+        <div class="modal-content">
+            <div class="modal-hazard"></div>
+            <div class="modal-body">
+                <h3 id="modal-title">Confirm Action</h3>
+                <p id="modal-message">Are you sure you want to proceed?</p>
+                <div class="modal-actions">
+                    <button id="modal-cancel" class="btn btn-outline btn-sm">Cancel</button>
+                    <button id="modal-confirm" class="btn btn-primary btn-sm">Confirm</button>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <script src="assets/js/main.js"></script>
 </body>

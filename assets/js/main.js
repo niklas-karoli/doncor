@@ -472,8 +472,39 @@ function updateAuthUI() {
         if (statsEl) statsEl.textContent = `${currentUserState.tier} | ${currentUserState.miles.toLocaleString()} Miles`;
         if (avatarEl) avatarEl.src = currentUserState.avatar;
 
-        setupUserDropdown(userProfile);
+    let options = [];
+    if (isDeparture) {
+        options = appData.departureAirports;
+    } else {
+        const depVal = document.getElementById('departure-input')?.value || "";
+        options = [...new Set(appData.activeFlights.filter(f => f.departure_airport === depVal).map(f => f.destination_airport).filter(Boolean))];
     }
+
+    const query = input.value.toLowerCase();
+    const filtered = options.filter(o => o.toLowerCase().includes(query)).sort();
+
+    if (filtered.length > 0) {
+        filtered.forEach(o => {
+            const item = document.createElement('div');
+            item.className = 'autocomplete-item';
+            item.textContent = o;
+            item.onclick = () => {
+                input.value = o;
+                list.style.display = 'none';
+                if (isDeparture) {
+                    const arr = document.getElementById('arrival-input');
+                    if (arr) arr.value = '';
+                }
+            };
+            list.appendChild(item);
+        });
+    } else {
+        const item = document.createElement('div');
+        item.className = 'autocomplete-item empty-state';
+        item.textContent = isDeparture ? "No scheduled departures" : "No available destinations";
+        list.appendChild(item);
+    }
+    list.style.display = 'block';
 }
 
 function setupUserDropdown(el) {
@@ -557,7 +588,19 @@ function initMobileMenu() {
                 menu.classList.remove('active');
             };
         });
+    } else {
+        const p = document.createElement('p'); p.className = 'empty-state'; p.textContent = 'No active bookings';
+        list.appendChild(p);
     }
+    info.appendChild(list); dropdown.appendChild(info);
+
+    const div2 = document.createElement('div'); div2.className = 'dropdown-divider'; dropdown.appendChild(div2);
+
+    const logout = document.createElement('button'); logout.className = 'dropdown-item logout-btn'; logout.textContent = 'Logout';
+    logout.onclick = handleLogout; dropdown.appendChild(logout);
+
+    parent.appendChild(dropdown);
+    document.addEventListener('click', (e) => { if(!dropdown.contains(e.target)) dropdown.remove(); }, {once:true});
 }
 
 // --- Initialize ---

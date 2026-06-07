@@ -73,6 +73,7 @@ async function checkUserSession() {
 
             const { data: profile } = await dbClient.from('profiles').select('*').eq('id', user.id).single();
 
+            const miles = profile?.mileage_points || 0;
             currentUserState = {
                 id: user.id,
                 discord_id: discordId,
@@ -136,6 +137,15 @@ function initBookingMask() {
             performSearch(depInput.value, arrInput.value, appData.selectedDate);
         };
     }
+    info.appendChild(list); dropdown.appendChild(info);
+
+    const div2 = document.createElement('div'); div2.className = 'dropdown-divider'; dropdown.appendChild(div2);
+
+    const logout = document.createElement('button'); logout.className = 'dropdown-item logout-btn'; logout.textContent = 'Logout';
+    logout.onclick = handleLogout; dropdown.appendChild(logout);
+
+    parent.appendChild(dropdown);
+    document.addEventListener('click', (e) => { if(!dropdown.contains(e.target)) dropdown.remove(); }, {once:true});
 }
 
 function setupAutocomplete(input, listId, isDeparture) {

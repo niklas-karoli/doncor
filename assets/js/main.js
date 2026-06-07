@@ -73,8 +73,6 @@ async function checkUserSession() {
 
             const { data: profile } = await dbClient.from('profiles').select('*').eq('id', user.id).single();
 
-            if (profileError) console.warn("Profile fetch error (using defaults):", profileError.message);
-
             const miles = profile?.mileage_points || 0;
             currentUserState = {
                 id: user.id,
@@ -139,6 +137,15 @@ function initBookingMask() {
             performSearch(depInput.value, arrInput.value, appData.selectedDate);
         };
     }
+    info.appendChild(list); dropdown.appendChild(info);
+
+    const div2 = document.createElement('div'); div2.className = 'dropdown-divider'; dropdown.appendChild(div2);
+
+    const logout = document.createElement('button'); logout.className = 'dropdown-item logout-btn'; logout.textContent = 'Logout';
+    logout.onclick = handleLogout; dropdown.appendChild(logout);
+
+    parent.appendChild(dropdown);
+    document.addEventListener('click', (e) => { if(!dropdown.contains(e.target)) dropdown.remove(); }, {once:true});
 }
 
 function setupAutocomplete(input, listId, isDeparture) {
@@ -224,7 +231,6 @@ function renderCalendar(date, container, input) {
         div.textContent = d;
         grid.appendChild(div);
     });
-}
 
     for(let i=0; i<firstDay; i++) {
         const div = document.createElement('div');
@@ -483,39 +489,6 @@ function renderProfileDropdown(parent) {
 
     parent.appendChild(dropdown);
     document.addEventListener('click', (e) => { if(!dropdown.contains(e.target)) dropdown.remove(); }, {once:true});
-}
-
-function setupUserDropdown(profileElement) {
-    const newEl = profileElement.cloneNode(true);
-    profileElement.parentNode.replaceChild(newEl, profileElement);
-    newEl.onclick = (e) => {
-        e.stopPropagation();
-        const existing = document.getElementById('user-dropdown');
-        if (existing) existing.remove();
-        else renderDropdown(newEl);
-    };
-}
-
-function renderDropdown(parent) {
-    const dropdown = document.createElement('div');
-    dropdown.id = 'user-dropdown';
-    dropdown.className = 'user-dropdown-menu';
-    dropdown.innerHTML = `
-        <div class="dropdown-header"><span class="user-name-large">${currentUserState.username}</span><span class="user-tier-badge">${currentUserState.tier}</span></div>
-        <div class="dropdown-divider"></div>
-        <div class="dropdown-info">
-            <div class="info-item"><span class="label">Current Balance</span><span class="value">${currentUserState.miles.toLocaleString()} Miles</span></div>
-            <div class="info-item" style="margin-top:10px;"><span class="label">Vouchers</span><span class="value">B: ${currentUserState.vouchers.business} | F: ${currentUserState.vouchers.first}</span></div>
-        </div>
-        <div class="dropdown-divider"></div>
-        <button id="logout-link" class="dropdown-item logout-btn">Logout</button>
-    `;
-    parent.appendChild(dropdown);
-    dropdown.querySelector('#logout-link').onclick = (e) => { e.preventDefault(); handleLogout(); };
-    setTimeout(() => {
-        const close = (e) => { if (!dropdown.contains(e.target) && !parent.contains(e.target)) { dropdown.remove(); document.removeEventListener('click', close); } };
-        document.addEventListener('click', close);
-    }, 10);
 }
 
 // --- Initialize ---

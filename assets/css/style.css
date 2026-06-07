@@ -410,7 +410,7 @@ nav ul li a:hover {
 }
 
 /* Autocomplete & Calendar */
-.autocomplete-list, .calendar-picker {
+.autocomplete-list {
     position: absolute;
     top: calc(100% + 10px);
     left: 0;
@@ -421,6 +421,20 @@ nav ul li a:hover {
     z-index: 100;
     max-height: 300px;
     overflow-y: auto;
+    display: none;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+}
+
+.calendar-picker {
+    position: absolute;
+    top: calc(100% + 10px);
+    left: 0;
+    width: 100%;
+    background: var(--bg-section);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    z-index: 100;
+    overflow: hidden;
     display: none;
     box-shadow: 0 10px 25px rgba(0,0,0,0.5);
 }
@@ -440,44 +454,79 @@ nav ul li a:hover {
 /* Custom Calendar */
 .calendar-picker {
     width: 320px;
-    padding: 20px;
+    padding: 15px;
 }
 
 .calendar-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 15px;
+    margin-bottom: 10px;
+}
+
+.calendar-header span {
+    font-weight: 700;
+    font-family: 'Montserrat', sans-serif;
+    font-size: 0.9rem;
+    color: var(--white);
+}
+
+.calendar-header button {
+    background: transparent;
+    border: none;
+    color: var(--accent-yellow);
+    cursor: pointer;
+    font-size: 1.2rem;
+    padding: 0 10px;
 }
 
 .calendar-grid {
     display: grid;
     grid-template-columns: repeat(7, 1fr);
-    gap: 5px;
+    gap: 2px;
     text-align: center;
 }
 
 .calendar-day {
-    padding: 8px;
-    font-size: 0.85rem;
+    aspect-ratio: 1 / 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.8rem;
     cursor: pointer;
-    border-radius: 4px;
+    position: relative;
     transition: var(--transition);
 }
 
-.calendar-day:hover:not(.empty) {
-    background: rgba(255, 200, 0, 0.2);
+.calendar-day span {
+    width: 30px;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    z-index: 2;
 }
 
-.calendar-day.has-flight {
-    color: var(--accent-yellow);
-    font-weight: 700;
-    text-decoration: underline;
+.calendar-day:hover span:not(.empty) {
+    background: rgba(255, 255, 255, 0.1);
 }
 
-.calendar-day.selected {
+.calendar-day.has-flight span {
     background: var(--accent-yellow);
     color: var(--bg-dark);
+    font-weight: 700;
+}
+
+.calendar-day.selected span {
+    background: var(--white);
+    color: var(--bg-dark);
+}
+
+.calendar-day.has-flight.selected span {
+    background: var(--accent-yellow);
+    color: var(--bg-dark);
+    box-shadow: 0 0 0 2px var(--bg-section), 0 0 0 4px var(--white);
 }
 
 .calendar-weekday {

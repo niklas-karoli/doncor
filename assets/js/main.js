@@ -246,9 +246,17 @@ function renderCalendar(date, container, input) {
     for(let d=1; d<=daysInMonth; d++) {
         const ds = `${year}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
         const div = document.createElement('div');
-        div.className = `calendar-day ${appData.flightDates.includes(ds)?'has-flight':''} ${appData.selectedDate===ds?'selected':''}`;
+        const hasFlight = appData.flightDates.includes(ds);
+        const isSelected = appData.selectedDate === ds;
+
+        div.className = 'calendar-day';
+        if (hasFlight) div.classList.add('has-flight');
+        if (isSelected) div.classList.add('selected');
+
         div.dataset.date = ds;
-        div.textContent = d;
+        const span = document.createElement('span');
+        span.textContent = d;
+        div.appendChild(span);
         div.onclick = () => {
             appData.selectedDate = ds;
             input.value = ds;
@@ -292,10 +300,25 @@ function renderFlightResults(flights, container) {
         card.className = 'flight-card';
         card.id = `flight-${f.flight_number}`;
 
-        const depTime = new Date(f.event_start);
-        const arrTime = new Date(f.event_end);
-        const depStr = depTime.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
-        const arrStr = arrTime.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+        const newDepTime = new Date(f.event_start);
+        const originalArrTime = new Date(f.event_end);
+
+        let displayDepTime = newDepTime;
+        let displayArrTime = originalArrTime;
+        let origDepStr = '', origArrStr = '';
+
+        const isDel = f.is_delayed && f.original_start;
+        if (isDel) {
+            const origDep = new Date(f.original_start);
+            const offset = newDepTime.getTime() - origDep.getTime();
+            displayArrTime = new Date(originalArrTime.getTime() + offset);
+
+            origDepStr = origDep.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+            origArrStr = originalArrTime.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+        }
+
+        const depStr = displayDepTime.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+        const arrStr = displayArrTime.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
 
         const main = document.createElement('div');
         main.className = 'flight-main';
@@ -320,22 +343,12 @@ function renderFlightResults(flights, container) {
             return pt;
         };
 
-        const isDel = f.is_delayed && f.original_start;
-        let origDepStr = '', origArrStr = '';
-        if (isDel) {
-            const origDep = new Date(f.original_start);
-            const offset = depTime - origDep;
-            const origArr = new Date(new Date(f.event_end) - offset);
-            origDepStr = origDep.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
-            origArrStr = origArr.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
-        }
-
         route.appendChild(createPoint(depStr, f.departure_airport, isDel, origDepStr));
         const arrow = document.createElement('div'); arrow.className = 'route-arrow'; route.appendChild(arrow);
         route.appendChild(createPoint(arrStr, f.destination_airport, isDel, origArrStr));
         main.appendChild(route);
 
-        const dur = Math.floor((arrTime - depTime)/60000);
+        const dur = Math.floor((displayArrTime - displayDepTime)/60000);
         const durDiv = document.createElement('div'); durDiv.className = 'flight-duration';
         durDiv.textContent = `Duration: ${Math.floor(dur/60)}h ${dur%60}m`;
         main.appendChild(durDiv);
@@ -345,7 +358,8 @@ function renderFlightResults(flights, container) {
             const d = document.createElement('div'); d.className = 'detail-item';
             const s = document.createElement('strong'); s.textContent = label; d.appendChild(s);
             if (isLink) {
-                const a = document.createElement('a'); a.href = linkUrl; a.target = '_blank'; a.className = 'codeshare-link'; a.textContent = value;
+                const a = document.createElement('a'); a.href = linkUrl; a.target = '_blank';
+                a.rel = 'noopener noreferrer'; a.className = 'codeshare-link'; a.textContent = value;
                 d.appendChild(a);
             } else {
                 d.appendChild(document.createTextNode(value));
@@ -353,7 +367,8 @@ function renderFlightResults(flights, container) {
             return d;
         };
         details.appendChild(createDetail('Aircraft', f.aircraft_type || "TBD"));
-        details.appendChild(createDetail('Carrier', f.is_codeshare ? f.codeshare_airline : 'Doncor Wings', f.is_codeshare, f.codeshare_discord_link));
+        const carrierVal = f.is_codeshare ? `Operated by ${f.codeshare_airline}` : 'Doncor Wings';
+        details.appendChild(createDetail('Carrier', carrierVal, f.is_codeshare, f.codeshare_discord_link));
         main.appendChild(details);
 
         const legal = document.createElement('div'); legal.className = 'legal-disclaimer-small';
@@ -456,10 +471,6 @@ function updateAuthUI() {
         if (nameEl) nameEl.textContent = currentUserState.username;
         if (statsEl) statsEl.textContent = `${currentUserState.tier} | ${currentUserState.miles.toLocaleString()} Miles`;
         if (avatarEl) avatarEl.src = currentUserState.avatar;
-
-    if (depInput) setupAutocomplete(depInput, 'departure-list', true);
-    if (arrInput) setupAutocomplete(arrInput, 'arrival-list', false);
-    if (dateInput) setupCalendar(dateInput);
 
     if (searchBtn) {
         searchBtn.onclick = (e) => {

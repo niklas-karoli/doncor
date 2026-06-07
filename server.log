@@ -1,0 +1,7 @@
+127.0.0.1 - - [07/Jun/2026 02:21:46] "GET /index.html HTTP/1.1" 200 -
+127.0.0.1 - - [07/Jun/2026 02:21:46] "GET /assets/css/style.css HTTP/1.1" 200 -
+127.0.0.1 - - [07/Jun/2026 02:21:46] "GET /assets/js/main.js HTTP/1.1" 200 -
+127.0.0.1 - - [07/Jun/2026 02:21:46] "GET /assets/images/hero-bg.jpg HTTP/1.1" 200 -
+127.0.0.1 - - [07/Jun/2026 02:21:46] "GET /assets/image/paphos.png?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80 HTTP/1.1" 200 -
+127.0.0.1 - - [07/Jun/2026 02:21:46] "GET /assets/image/tokyo.png?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80 HTTP/1.1" 200 -
+127.0.0.1 - - [07/Jun/2026 02:21:46] "GET /assets/image/GR.png?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80 HTTP/1.1" 200 -

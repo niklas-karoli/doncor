@@ -1,42 +1,59 @@
 /**
  * DONCOR WINGS PTFS - Main Logic
- * Production-ready with Supabase Integration
+ * Professional Booking Hub Edition - v2.1 Secure & Accurate
  */
 
-// --- Supabase Configuration ---
-// TO THE USER: Replace these with your actual Supabase URL and Anon Key
 const supabaseUrl = 'https://cqybjgwbehmjpeecqkbq.supabase.co';
 const supabaseKey = 'sb_publishable_8jrQCtGf-KaQR1s7avn4ew_RJcuBSfz';
 let dbClient = null;
 
-// Persistent state for the current user to avoid parsing the DOM
 let currentUserState = {
+    id: null,
+    discord_id: '',
     username: '',
-    tier: '',
-    miles: '0',
-    avatar: ''
+    tier: 'White Wing',
+    miles: 0,
+    avatar: '',
+    vouchers: { business: 0, first: 0 },
+    bookings: []
 };
 
-// Initialize Supabase if the library is loaded
-if (typeof supabase !== 'undefined') {
-    dbClient = supabase.createClient(supabaseUrl, supabaseKey);
+let appData = {
+    activeFlights: [],
+    departureAirports: [],
+    arrivalAirports: [],
+    flightDates: [],
+    selectedDate: null,
+    isDataLoaded: false
+};
+
+function initSupabase() {
+    try {
+        if (typeof supabase !== 'undefined') {
+            dbClient = supabase.createClient(supabaseUrl, supabaseKey);
+        }
+    } catch (e) { console.error("Supabase failed:", e.message); }
 }
 
-// --- Auth Functions ---
+function calculateTier(miles) {
+    if (miles >= 72000) return "Gold Captain (Elite)";
+    if (miles >= 36000) return "Silver Commander";
+    if (miles >= 12000) return "Bronze Aviator";
+    return "White Wing";
+}
+
+function getLocalDateStr(date) {
+    const d = new Date(date);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+// --- Auth & Profile ---
 async function signInWithDiscord() {
-    if (!dbClient) {
-        console.error("Supabase client not initialized.");
-        return;
-    }
-
-    const { error } = await dbClient.auth.signInWithOAuth({
+    if (!dbClient) return;
+    await dbClient.auth.signInWithOAuth({
         provider: 'discord',
-        options: {
-            redirectTo: window.location.origin + '/discord/'
-        }
+        options: { redirectTo: window.location.origin + '/discord/' }
     });
-
-    if (error) console.error("Login Error:", error.message);
 }
 
 async function handleLogout() {
@@ -47,218 +64,451 @@ async function handleLogout() {
 
 async function checkUserSession() {
     if (!dbClient) return;
-
     try {
-        const { data: { session }, error } = await dbClient.auth.getSession();
-        if (error) throw error;
-
+        const { data: { session } } = await dbClient.auth.getSession();
         if (session) {
             const user = session.user;
+            const discordName = user.user_metadata.full_name || user.user_metadata.global_name || "Virtual Pilot";
+            const discordId = user.user_metadata.provider_id || user.id;
 
-            // Fallback chain for Discord Metadata
-            const discordName = user.user_metadata.full_name ||
-                               user.user_metadata.global_name ||
-                               user.user_metadata.name ||
-                               user.user_metadata.user_name ||
-                               "Virtual Pilot";
-
-            // Fetch custom profile data from 'public.profiles' table
-            const { data: profile } = await dbClient
-                .from('profiles')
-                .select('mileage_points, status_points, tier_level')
-                .eq('id', user.id)
-                .single();
+            const { data: profile } = await dbClient.from('profiles').select('*').eq('id', user.id).single();
 
             currentUserState = {
+                id: user.id,
+                discord_id: discordId,
                 username: discordName,
-                tier: profile?.tier_level || "White Wing",
-                miles: (profile?.mileage_points || 0).toLocaleString(),
-                avatar: user.user_metadata.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(discordName)}&background=FFC800&color=111625`
+                tier: calculateTier(profile?.mileage_points || 0),
+                miles: profile?.mileage_points || 0,
+                avatar: user.user_metadata.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(discordName)}`,
+                vouchers: {
+                    business: profile?.business_vouchers || 0,
+                    first: profile?.first_vouchers || 0
+                },
+                bookings: []
             };
-
+            await fetchUserBookings();
             updateAuthUI();
         }
-    } catch (err) {
-        console.error("Session check failed:", err.message);
+    } catch (err) { console.error("Session failed:", err.message); }
+}
+
+async function fetchUserBookings() {
+    if (!dbClient || !currentUserState.id) return;
+    try {
+        const { data, error } = await dbClient
+            .from('bookings')
+            .select('*, flights(*)')
+            .eq('user_id', currentUserState.id);
+        if (!error) currentUserState.bookings = data;
+    } catch (e) { console.error("Bookings fetch failed:", e.message); }
+}
+
+// --- Flight Data ---
+async function fetchActiveFlightData() {
+    if (!dbClient) return;
+    try {
+        const { data, error } = await dbClient
+            .from('flights')
+            .select('departure_airport, destination_airport, event_start');
+
+        if (error || !data) return;
+
+        appData.activeFlights = data;
+        appData.departureAirports = [...new Set(data.map(f => f.departure_airport))].sort();
+        appData.flightDates = [...new Set(data.map(f => getLocalDateStr(f.event_start)))];
+        appData.isDataLoaded = true;
+    } catch (err) { console.error("Data fetch failed:", err.message); }
+}
+
+function initBookingMask() {
+    const depInput = document.getElementById('departure-input');
+    const arrInput = document.getElementById('arrival-input');
+    const dateInput = document.getElementById('date-input');
+    const searchBtn = document.getElementById('search-flights-btn');
+
+    if (depInput) setupAutocomplete(depInput, 'departure-list', true);
+    if (arrInput) setupAutocomplete(arrInput, 'arrival-list', false);
+    if (dateInput) setupCalendar(dateInput);
+
+    if (searchBtn) {
+        searchBtn.onclick = (e) => {
+            e.preventDefault();
+            performSearch(depInput.value, arrInput.value, appData.selectedDate);
+        };
     }
+}
+
+function setupAutocomplete(input, listId, isDeparture) {
+    const list = document.getElementById(listId);
+    const trigger = () => renderSmartAutocomplete(input, list, isDeparture);
+    input.addEventListener('focus', trigger);
+    input.addEventListener('input', trigger);
+    document.addEventListener('click', (e) => {
+        if (!input.contains(e.target) && !list.contains(e.target)) list.style.display = 'none';
+    });
+}
+
+function renderSmartAutocomplete(input, list, isDeparture) {
+    list.innerHTML = '';
+    if (!appData.isDataLoaded) {
+        const item = document.createElement('div');
+        item.className = 'autocomplete-item';
+        item.textContent = 'Synchronizing...';
+        list.appendChild(item);
+        list.style.display = 'block';
+        return;
+    }
+
+    let options = [];
+    if (isDeparture) {
+        options = appData.departureAirports;
+    } else {
+        const depVal = document.getElementById('departure-input').value;
+        options = [...new Set(appData.activeFlights.filter(f => f.departure_airport === depVal).map(f => f.destination_airport))];
+    }
+
+    const query = input.value.toLowerCase();
+    const filtered = options.filter(o => o.toLowerCase().includes(query)).sort();
+
+    if (filtered.length > 0) {
+        filtered.forEach(o => {
+            const item = document.createElement('div');
+            item.className = 'autocomplete-item';
+            item.textContent = o;
+            item.onclick = () => {
+                input.value = o;
+                list.style.display = 'none';
+                if (isDeparture) document.getElementById('arrival-input').value = '';
+            };
+            list.appendChild(item);
+        });
+    } else {
+        const item = document.createElement('div');
+        item.className = 'autocomplete-item empty-state';
+        item.textContent = isDeparture ? "No scheduled departures" : "No available destinations";
+        list.appendChild(item);
+    }
+    list.style.display = 'block';
+}
+
+function setupCalendar(input) {
+    const picker = document.getElementById('calendar-picker');
+    let currentMonth = new Date();
+    input.onclick = (e) => {
+        e.stopPropagation();
+        picker.style.display = picker.style.display === 'block' ? 'none' : 'block';
+        renderCalendar(currentMonth, picker, input);
+    };
+}
+
+function renderCalendar(date, container, input) {
+    const year = date.getFullYear();
+    const month = date.getMonth();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const firstDay = new Date(year, month, 1).getDay();
+
+    container.innerHTML = '';
+    const header = document.createElement('div');
+    header.className = 'calendar-header';
+    header.innerHTML = `<button type="button" id="prev-m">&lt;</button><span>${date.toLocaleString('en', {month:'long'})} ${year}</span><button type="button" id="next-m">&gt;</button>`;
+    container.appendChild(header);
+
+    const grid = document.createElement('div');
+    grid.className = 'calendar-grid';
+    ["Su","Mo","Tu","We","Th","Fr","Sa"].forEach(d => {
+        const div = document.createElement('div');
+        div.className = 'calendar-weekday';
+        div.textContent = d;
+        grid.appendChild(div);
+    });
+
+    for(let i=0; i<firstDay; i++) {
+        const div = document.createElement('div');
+        div.className = 'calendar-day empty';
+        grid.appendChild(div);
+    }
+
+    for(let d=1; d<=daysInMonth; d++) {
+        const ds = `${year}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+        const div = document.createElement('div');
+        div.className = `calendar-day ${appData.flightDates.includes(ds)?'has-flight':''} ${appData.selectedDate===ds?'selected':''}`;
+        div.dataset.date = ds;
+        div.textContent = d;
+        div.onclick = () => { appData.selectedDate = ds; input.value = ds; container.style.display = 'none'; };
+        grid.appendChild(div);
+    }
+    container.appendChild(grid);
+
+    container.querySelector('#prev-m').onclick = (e) => { e.stopPropagation(); date.setMonth(month-1); renderCalendar(date, container, input); };
+    container.querySelector('#next-m').onclick = (e) => { e.stopPropagation(); date.setMonth(month+1); renderCalendar(date, container, input); };
+}
+
+// --- Search & Display ---
+async function performSearch(dep, arr, date) {
+    if (!dep || !arr || !date) return alert("Please complete the booking form.");
+    const container = document.getElementById('flights-container');
+    document.getElementById('flight-results').style.display = 'block';
+    container.innerHTML = '<div style="text-align:center; padding:40px;">Searching premium connections...</div>';
+
+    try {
+        const { data } = await dbClient.from('flights').select('*').eq('departure_airport', dep).eq('destination_airport', arr);
+        const filtered = (data || []).filter(f => getLocalDateStr(f.event_start) === date);
+
+        if (filtered.length === 0) {
+            container.innerHTML = '<p style="text-align:center; padding:40px;">No flights found for this route and date.</p>';
+            return;
+        }
+        renderFlightResults(filtered, container);
+    } catch (e) { container.innerHTML = '<p>Search error.</p>'; }
+}
+
+function renderFlightResults(flights, container) {
+    container.innerHTML = '';
+    flights.forEach(f => {
+        const card = document.createElement('div');
+        card.className = 'flight-card';
+        card.id = `flight-${f.flight_number}`;
+
+        let depTime = new Date(f.event_start);
+        let arrTime = new Date(f.event_end);
+        let depStr = depTime.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+        let arrStr = arrTime.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+
+        const main = document.createElement('div');
+        main.className = 'flight-main';
+
+        const route = document.createElement('div');
+        route.className = 'flight-route';
+
+        const createPoint = (time, airport, isDelayed, origTime) => {
+            const pt = document.createElement('div');
+            pt.className = 'route-point';
+            const tDiv = document.createElement('div');
+            tDiv.className = 'route-time';
+            if (isDelayed) {
+                const s1 = document.createElement('span'); s1.className = 'delayed-orig'; s1.textContent = origTime;
+                const s2 = document.createElement('span'); s2.className = 'delayed-new'; s2.textContent = time;
+                tDiv.appendChild(s1); tDiv.appendChild(document.createTextNode(' ')); tDiv.appendChild(s2);
+            } else {
+                tDiv.textContent = time;
+            }
+            const aDiv = document.createElement('div'); aDiv.className = 'route-airport'; aDiv.textContent = airport;
+            pt.appendChild(tDiv); pt.appendChild(aDiv);
+            return pt;
+        };
+
+        let isDel = f.is_delayed && f.original_start;
+        let origDepStr = '', origArrStr = '';
+        if (isDel) {
+            const origDep = new Date(f.original_start);
+            const offset = depTime - origDep;
+            const origArr = new Date(new Date(f.event_end) - offset);
+            origDepStr = origDep.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+            origArrStr = origArr.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+        }
+
+        route.appendChild(createPoint(depStr, f.departure_airport, isDel, origDepStr));
+        const arrow = document.createElement('div'); arrow.className = 'route-arrow'; route.appendChild(arrow);
+        route.appendChild(createPoint(arrStr, f.destination_airport, isDel, origArrStr));
+        main.appendChild(route);
+
+        const dur = Math.floor((arrTime - depTime)/60000);
+        const durDiv = document.createElement('div'); durDiv.className = 'flight-duration';
+        durDiv.textContent = `Duration: ${Math.floor(dur/60)}h ${dur%60}m`;
+        main.appendChild(durDiv);
+
+        const details = document.createElement('div'); details.className = 'flight-details';
+        const createDetail = (label, value, isLink, linkUrl) => {
+            const d = document.createElement('div'); d.className = 'detail-item';
+            const s = document.createElement('strong'); s.textContent = label; d.appendChild(s);
+            if (isLink) {
+                const a = document.createElement('a'); a.href = linkUrl; a.target = '_blank'; a.className = 'codeshare-link'; a.textContent = value;
+                d.appendChild(a);
+            } else {
+                d.appendChild(document.createTextNode(value));
+            }
+            return d;
+        };
+        details.appendChild(createDetail('Aircraft', f.aircraft_type));
+        details.appendChild(createDetail('Carrier', f.is_codeshare ? f.codeshare_airline : 'Doncor Wings', f.is_codeshare, f.codeshare_discord_link));
+        main.appendChild(details);
+
+        const legal = document.createElement('div'); legal.className = 'legal-disclaimer-small';
+        legal.textContent = 'Fictional Roblox RP flight. No real-world transactions.';
+        main.appendChild(legal);
+        card.appendChild(main);
+
+        const options = document.createElement('div');
+        options.className = 'booking-options';
+        const classes = f.available_classes || ['Economy'];
+        ['Economy', 'Business', 'First'].forEach(cls => {
+            if (classes.includes(cls)) options.appendChild(renderBlock(f, cls));
+        });
+        card.appendChild(options);
+        container.appendChild(card);
+    });
+}
+
+function renderBlock(f, cls) {
+    const block = document.createElement('div');
+    block.className = 'booking-block';
+    if (!currentUserState.id) {
+        const btn = document.createElement('button'); btn.className = 'btn btn-primary btn-sm'; btn.textContent = 'Sign In to Book';
+        btn.onclick = signInWithDiscord;
+        block.appendChild(btn);
+        return block;
+    }
+
+    const { tier, vouchers } = currentUserState;
+    const isLocked = (cls === 'Business' && !(tier.includes('Silver') || tier.includes('Gold') || (tier.includes('Bronze') && vouchers.business > 0))) ||
+                     (cls === 'First' && !(tier.includes('Gold') || (tier.includes('Silver') && vouchers.first > 0)));
+
+    if (isLocked) block.classList.add('locked');
+    const info = document.createElement('div'); info.className = 'block-info';
+    const h4 = document.createElement('h4'); h4.textContent = cls; info.appendChild(h4);
+    const p = document.createElement('p'); p.textContent = cls === 'Economy' ? 'Standard Seat' : (isLocked ? 'Tier Locked' : 'Available');
+    info.appendChild(p); block.appendChild(info);
+
+    if (!isLocked) {
+        const btn = document.createElement('button'); btn.className = 'btn btn-primary btn-sm'; btn.textContent = 'Book';
+        const useVoucher = (cls === 'Business' && tier.includes('Bronze')) || (cls === 'First' && tier.includes('Silver'));
+        btn.onclick = () => bookFlight(f.flight_number, cls, useVoucher);
+        block.appendChild(btn);
+    }
+    return block;
+}
+
+async function bookFlight(fn, cls, v) {
+    try {
+        const { error } = await dbClient.from('bookings').insert([{
+            flight_number: fn, user_id: currentUserState.id, discord_id: currentUserState.discord_id,
+            username: currentUserState.username, booking_class: cls, used_voucher: v
+        }]);
+        if (error) throw error;
+
+        if (v) {
+            const field = cls === 'Business' ? 'business_vouchers' : 'first_vouchers';
+            await dbClient.from('profiles').update({ [field]: currentUserState.vouchers[cls.toLowerCase()] - 1 }).eq('id', currentUserState.id);
+        }
+
+        const card = document.getElementById(`flight-${fn}`);
+        card.innerHTML = '';
+        const success = document.createElement('div'); success.className = 'success-card';
+        const h2 = document.createElement('h2'); h2.textContent = 'Booking Successful!'; success.appendChild(h2);
+        const p = document.createElement('p'); p.textContent = `A confirmation has been sent to your Discord DMs. Your ${cls} seat is locked in.`;
+        success.appendChild(p); card.appendChild(success);
+
+        await fetchUserBookings();
+        updateAuthUI();
+    } catch (e) { alert("Booking error."); }
+}
+
+async function cancelBooking(id) {
+    if (!confirm("Cancel this flight?")) return;
+    try {
+        const { error } = await dbClient.from('bookings').delete().eq('id', id);
+        if (!error) {
+            await fetchUserBookings();
+            updateAuthUI();
+        }
+    } catch (e) { console.error("Cancel failed."); }
 }
 
 // --- UI Logic ---
 function updateAuthUI() {
-    const loginBtn = document.getElementById('login-btn');
     const userProfile = document.getElementById('user-profile');
-
-    if (userProfile && loginBtn) {
+    const loginBtn = document.getElementById('login-btn');
+    if (userProfile && currentUserState.id) {
         loginBtn.style.display = 'none';
         userProfile.style.display = 'flex';
-
-        const nameEl = document.getElementById('user-name');
-        const statsEl = document.getElementById('user-stats');
-        const avatarEl = userProfile.querySelector('img');
-
-        if (nameEl) nameEl.innerText = currentUserState.username;
-        if (statsEl) statsEl.innerText = `Tier: ${currentUserState.tier} | ${currentUserState.miles} Miles`;
-        if (avatarEl && currentUserState.avatar) avatarEl.src = currentUserState.avatar;
-
-        // Apply dynamic tier coloring
-        userProfile.classList.remove('status-silver', 'status-gold', 'status-bronze');
-        const tierLower = currentUserState.tier.toLowerCase();
-        if (tierLower.includes('silver')) userProfile.classList.add('status-silver');
-        else if (tierLower.includes('gold')) userProfile.classList.add('status-gold');
-        else if (tierLower.includes('bronze')) userProfile.classList.add('status-bronze');
-
+        userProfile.querySelector('#user-name').textContent = currentUserState.username;
+        userProfile.querySelector('#user-stats').textContent = `${currentUserState.tier} | ${currentUserState.miles.toLocaleString()} Miles`;
+        userProfile.querySelector('img').src = currentUserState.avatar;
         setupUserDropdown(userProfile);
     }
 }
 
-function setupUserDropdown(profileElement) {
-    // Remove old listeners to prevent duplicates
-    const newProfileElement = profileElement.cloneNode(true);
-    profileElement.parentNode.replaceChild(newProfileElement, profileElement);
-
-    newProfileElement.addEventListener('click', (e) => {
+function setupUserDropdown(el) {
+    const newEl = el.cloneNode(true);
+    el.parentNode.replaceChild(newEl, el);
+    newEl.onclick = (e) => {
         e.stopPropagation();
-        const existingDropdown = document.getElementById('user-dropdown');
-        if (existingDropdown) {
-            existingDropdown.remove();
-        } else {
-            renderDropdown(newProfileElement);
-        }
-    });
+        const existing = document.getElementById('user-dropdown');
+        if (existing) existing.remove();
+        else renderProfileDropdown(newEl);
+    };
 }
 
-function renderDropdown(parent) {
+function renderProfileDropdown(parent) {
     const dropdown = document.createElement('div');
     dropdown.id = 'user-dropdown';
     dropdown.className = 'user-dropdown-menu';
 
-    dropdown.innerHTML = `
-        <div class="dropdown-header">
-            <span class="user-name-large">${currentUserState.username}</span>
-            <span class="user-tier-badge">${currentUserState.tier}</span>
-        </div>
-        <div class="dropdown-divider"></div>
-        <div class="dropdown-info">
-            <div class="info-item">
-                <span class="label">Current Balance</span>
-                <span class="value">${currentUserState.miles} Miles</span>
-            </div>
-        </div>
-        <div class="dropdown-divider"></div>
-        <button id="logout-link" class="dropdown-item logout-btn">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
-                <polyline points="16 17 21 12 16 7"></polyline>
-                <line x1="21" y1="12" x2="9" y2="12"></line>
-            </svg>
-            <span>Logout</span>
-        </button>
-    `;
+    const header = document.createElement('div'); header.className = 'dropdown-header';
+    const strong = document.createElement('strong'); strong.textContent = currentUserState.username; header.appendChild(strong);
+    header.appendChild(document.createElement('br'));
+    const small = document.createElement('small'); small.textContent = currentUserState.tier; header.appendChild(small);
+    dropdown.appendChild(header);
+
+    const div1 = document.createElement('div'); div1.className = 'dropdown-divider'; dropdown.appendChild(div1);
+
+    const info = document.createElement('div'); info.className = 'dropdown-info';
+    const s2 = document.createElement('strong'); s2.textContent = 'My Bookings'; info.appendChild(s2);
+    const list = document.createElement('div'); list.className = 'bookings-list-mini';
+
+    if (currentUserState.bookings.length) {
+        currentUserState.bookings.forEach(b => {
+            const item = document.createElement('div'); item.className = 'booking-item-mini';
+            const txt = document.createElement('div'); txt.innerHTML = `<strong>${b.flights.departure_airport} ➔ ${b.flights.destination_airport}</strong><br><small>${b.booking_class}</small>`;
+            item.appendChild(txt);
+            const btn = document.createElement('button'); btn.className = 'cancel-link'; btn.textContent = 'Cancel';
+            btn.onclick = (e) => { e.stopPropagation(); cancelBooking(b.id); };
+            item.appendChild(btn);
+            list.appendChild(item);
+        });
+    } else {
+        const p = document.createElement('p'); p.className = 'empty-state'; p.textContent = 'No active bookings';
+        list.appendChild(p);
+    }
+    info.appendChild(list); dropdown.appendChild(info);
+
+    const div2 = document.createElement('div'); div2.className = 'dropdown-divider'; dropdown.appendChild(div2);
+
+    const logout = document.createElement('button'); logout.className = 'dropdown-item logout-btn'; logout.textContent = 'Logout';
+    logout.onclick = handleLogout; dropdown.appendChild(logout);
 
     parent.appendChild(dropdown);
-
-    const logoutBtn = dropdown.querySelector('#logout-link');
-    logoutBtn.addEventListener('click', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        handleLogout();
-    });
-
-    // Close on click outside
-    setTimeout(() => {
-        const closeDropdown = (e) => {
-            if (!dropdown.contains(e.target) && !parent.contains(e.target)) {
-                dropdown.remove();
-                document.removeEventListener('click', closeDropdown);
-            }
-        };
-        document.addEventListener('click', closeDropdown);
-    }, 10);
-}
-
-// --- Stats Animation ---
-function animateStats() {
-    const stats = document.querySelectorAll('.stat-number');
-
-    stats.forEach(stat => {
-        const target = +stat.getAttribute('data-target');
-        const suffix = stat.getAttribute('data-suffix') || "";
-        const duration = 2000;
-        let startTime = null;
-
-        function step(timestamp) {
-            if (!startTime) startTime = timestamp;
-            const progress = Math.min((timestamp - startTime) / duration, 1);
-            stat.innerText = Math.floor(progress * target) + suffix;
-            if (progress < 1) {
-                requestAnimationFrame(step);
-            }
-        }
-        requestAnimationFrame(step);
-    });
-}
-
-// --- Mobile Menu ---
-function initMobileMenu() {
-    const toggle = document.getElementById('mobile-toggle');
-    const nav = document.getElementById('nav-menu');
-
-    if (toggle && nav) {
-        toggle.addEventListener('click', () => {
-            toggle.classList.toggle('active');
-            nav.classList.toggle('active');
-        });
-
-        nav.querySelectorAll('a').forEach(link => {
-            link.addEventListener('click', () => {
-                toggle.classList.remove('active');
-                nav.classList.remove('active');
-            });
-        });
-    }
+    document.addEventListener('click', (e) => { if(!dropdown.contains(e.target)) dropdown.remove(); }, {once:true});
 }
 
 // --- Initialize ---
-document.addEventListener('DOMContentLoaded', () => {
-    checkUserSession();
-    initMobileMenu();
+document.addEventListener('DOMContentLoaded', async () => {
+    initSupabase();
+    await checkUserSession();
+    await fetchActiveFlightData();
+    initBookingMask();
 
-    const loginBtns = document.querySelectorAll('#login-btn, .btn-primary:not(header .btn-primary)');
-    loginBtns.forEach(btn => {
-        if (btn.innerText.toLowerCase().includes('discord') || btn.id === 'login-btn') {
-            btn.addEventListener('click', (e) => {
-                if (btn.getAttribute('href') === '#' || !btn.getAttribute('href')) {
-                    e.preventDefault();
-                    signInWithDiscord();
-                }
-            });
-        }
-    });
-
-    if (document.querySelector('.stat-number')) {
-        const observer = new IntersectionObserver((entries) => {
+    const statsGrid = document.querySelector('.stats-grid') || document.querySelector('.tiers-grid');
+    if (statsGrid) {
+        new IntersectionObserver((entries, observer) => {
             if (entries[0].isIntersecting) {
-                animateStats();
+                document.querySelectorAll('.stat-number').forEach(s => {
+                    const target = +s.dataset.target;
+                    let count = 0;
+                    const update = () => {
+                        count += Math.ceil(target/50);
+                        if (count < target) { s.textContent = count.toLocaleString() + (s.dataset.suffix || ''); requestAnimationFrame(update); }
+                        else s.textContent = target.toLocaleString() + (s.dataset.suffix || '');
+                    };
+                    update();
+                });
                 observer.disconnect();
             }
-        });
-        const target = document.querySelector('.stats-grid');
-        if (target) observer.observe(target);
+        }).observe(statsGrid);
     }
-
-    document.querySelectorAll('a[href^="#"]').forEach(anchor => {
-        anchor.addEventListener('click', function (e) {
-            const href = this.getAttribute('href');
-            if (href === '#' || href === '') {
-                e.preventDefault();
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-                return;
-            }
-            const target = document.querySelector(href);
-            if (target) {
-                e.preventDefault();
-                target.scrollIntoView({ behavior: 'smooth' });
-            }
-        });
-    });
 });
+
+window.signInWithDiscord = signInWithDiscord;
+window.bookFlight = bookFlight;
+window.cancelBooking = cancelBooking;
+window.handleLogout = handleLogout;

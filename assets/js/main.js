@@ -1,6 +1,6 @@
 /**
  * DONCOR WINGS PTFS - Main Logic
- * Professional Booking Hub Edition
+ * Professional Booking Hub Edition - Robust Production Build
  */
 
 // --- Supabase Configuration ---
@@ -27,12 +27,30 @@ let appData = {
     activeFlights: [],
     airports: [],
     flightDates: [], // Strings in YYYY-MM-DD
-    selectedDate: null
+    selectedDate: null,
+    isDataLoaded: false
 };
 
-// Initialize Supabase
-if (typeof supabase !== 'undefined') {
-    dbClient = supabase.createClient(supabaseUrl, supabaseKey);
+// Initialize Supabase with better error handling
+function initSupabase() {
+    try {
+        if (typeof supabase !== 'undefined') {
+            dbClient = supabase.createClient(supabaseUrl, supabaseKey);
+            console.log("Supabase Client Initialized Successfully");
+        } else {
+            console.error("Supabase library not found. Ensure the CDN script is loaded.");
+        }
+    } catch (e) {
+        console.error("Failed to initialize Supabase:", e.message);
+    }
+}
+
+// --- Tier Logic ---
+function calculateTier(miles) {
+    if (miles >= 72000) return "Gold Captain (Elite)";
+    if (miles >= 36000) return "Silver Commander";
+    if (miles >= 12000) return "Bronze Aviator";
+    return "White Wing";
 }
 
 // --- Tier Logic ---
@@ -45,7 +63,10 @@ function calculateTier(miles) {
 
 // --- Auth Functions ---
 async function signInWithDiscord() {
-    if (!dbClient) return;
+    if (!dbClient) {
+        alert("Authentication service is currently unavailable.");
+        return;
+    }
     const { error } = await dbClient.auth.signInWithOAuth({
         provider: 'discord',
         options: { redirectTo: window.location.origin + '/discord/' }
@@ -67,14 +88,16 @@ async function checkUserSession() {
 
         if (session) {
             const user = session.user;
-            const discordName = user.user_metadata.full_name || user.user_metadata.global_name || "Virtual Pilot";
-            const discordId = user.user_metadata.provider_id || user.id; // Fallback to user.id if provider_id not present
+            const discordName = user.user_metadata.full_name || user.user_metadata.global_name || user.user_metadata.name || "Virtual Pilot";
+            const discordId = user.user_metadata.provider_id || user.id;
 
-            const { data: profile } = await dbClient
+            const { data: profile, error: profileError } = await dbClient
                 .from('profiles')
                 .select('mileage_points, business_vouchers, first_vouchers')
                 .eq('id', user.id)
                 .single();
+
+            if (profileError) console.warn("Profile fetch error (using defaults):", profileError.message);
 
             const miles = profile?.mileage_points || 0;
             currentUserState = {
@@ -100,30 +123,46 @@ async function checkUserSession() {
 async function fetchActiveFlightData() {
     if (!dbClient) return;
     try {
+        console.log("Fetching active flights...");
         const { data, error } = await dbClient
             .from('flights')
             .select('departure_airport, destination_airport, event_start');
 
-        if (error) throw error;
+        if (error) {
+            console.error("Supabase flight fetch error:", error.message);
+            return;
+        }
+
+        if (!data || data.length === 0) {
+            console.warn("No active flights found in the database.");
+            appData.activeFlights = [];
+            appData.airports = [];
+            appData.flightDates = [];
+            return;
+        }
 
         appData.activeFlights = data;
 
         const airportSet = new Set();
         data.forEach(f => {
-            airportSet.add(f.departure_airport);
-            airportSet.add(f.destination_airport);
+            if (f.departure_airport) airportSet.add(f.departure_airport);
+            if (f.destination_airport) airportSet.add(f.destination_airport);
         });
         appData.airports = Array.from(airportSet).sort();
 
         const dateSet = new Set();
         data.forEach(f => {
-            const dateStr = new Date(f.event_start).toISOString().split('T')[0];
-            dateSet.add(dateStr);
+            if (f.event_start) {
+                const dateStr = new Date(f.event_start).toISOString().split('T')[0];
+                dateSet.add(dateStr);
+            }
         });
         appData.flightDates = Array.from(dateSet);
+        appData.isDataLoaded = true;
+        console.log(`Loaded ${appData.airports.length} airports and ${appData.flightDates.length} flight dates.`);
 
     } catch (err) {
-        console.error("Error fetching flight data:", err.message);
+        console.error("Critical error fetching flight data:", err.message);
     }
 }
 
@@ -138,17 +177,27 @@ function initBookingMask() {
     if (dateInput) setupCalendar(dateInput);
 
     if (searchBtn) {
-        searchBtn.addEventListener('click', () => {
+        searchBtn.onclick = (e) => {
+            e.preventDefault();
             performSearch(depInput.value, arrInput.value, appData.selectedDate);
-        });
+        };
     }
 }
 
 function setupAutocomplete(input, listId) {
     const list = document.getElementById(listId);
 
-    input.addEventListener('focus', () => renderAutocomplete(input.value, list, input));
-    input.addEventListener('input', () => renderAutocomplete(input.value, list, input));
+    const trigger = () => {
+        if (!appData.isDataLoaded) {
+            list.innerHTML = '<div class="autocomplete-item">Loading data...</div>';
+            list.style.display = 'block';
+            return;
+        }
+        renderAutocomplete(input.value, list, input);
+    };
+
+    input.addEventListener('focus', trigger);
+    input.addEventListener('input', trigger);
 
     document.addEventListener('click', (e) => {
         if (!input.contains(e.target) && !list.contains(e.target)) {
@@ -163,10 +212,11 @@ function renderAutocomplete(query, list, input) {
         list.innerHTML = filtered.map(a => `<div class="autocomplete-item">${a}</div>`).join('');
         list.style.display = 'block';
         list.querySelectorAll('.autocomplete-item').forEach(item => {
-            item.addEventListener('click', () => {
+            item.onclick = (e) => {
+                e.stopPropagation();
                 input.value = item.textContent;
                 list.style.display = 'none';
-            });
+            };
         });
     } else {
         list.style.display = 'none';
@@ -176,11 +226,11 @@ function renderAutocomplete(query, list, input) {
 function setupCalendar(input) {
     const picker = document.getElementById('calendar-picker');
     let currentMonth = new Date();
-    input.addEventListener('click', (e) => {
+    input.onclick = (e) => {
         e.stopPropagation();
         picker.style.display = picker.style.display === 'block' ? 'none' : 'block';
         renderCalendar(currentMonth, picker, input);
-    });
+    };
     document.addEventListener('click', (e) => {
         if (!input.contains(e.target) && !picker.contains(e.target)) {
             picker.style.display = 'none';
@@ -197,9 +247,9 @@ function renderCalendar(date, container, input) {
 
     let html = `
         <div class="calendar-header">
-            <button id="prev-month">&lt;</button>
+            <button id="prev-month" type="button">&lt;</button>
             <span>${monthName} ${year}</span>
-            <button id="next-month">&gt;</button>
+            <button id="next-month" type="button">&gt;</button>
         </div>
         <div class="calendar-grid">
             <div class="calendar-weekday">Su</div><div class="calendar-weekday">Mo</div>
@@ -240,13 +290,19 @@ function renderCalendar(date, container, input) {
 
 async function performSearch(dep, arr, date) {
     if (!dep || !arr || !date) {
-        alert("Please fill all fields");
+        alert("Please select departure, destination, and date.");
         return;
     }
     const resultsSection = document.getElementById('flight-results');
     const container = document.getElementById('flights-container');
+
+    if (!dbClient) {
+        container.innerHTML = '<p style="text-align:center;">Database connection unavailable. Please try again later.</p>';
+        return;
+    }
+
     resultsSection.style.display = 'block';
-    container.innerHTML = '<p style="text-align:center;">Searching for premium flights...</p>';
+    container.innerHTML = '<div class="loading-spinner" style="text-align:center; padding: 40px;">Searching for available flights...</div>';
     window.scrollTo({ top: resultsSection.offsetTop - 100, behavior: 'smooth' });
 
     try {
@@ -255,17 +311,28 @@ async function performSearch(dep, arr, date) {
             .select('*')
             .eq('departure_airport', dep)
             .eq('destination_airport', arr);
+
         if (error) throw error;
 
-        const filtered = data.filter(f => new Date(f.event_start).toISOString().split('T')[0] === date);
+        if (!data || data.length === 0) {
+            container.innerHTML = '<p style="text-align:center; padding: 40px;">No flights found for this route.</p>';
+            return;
+        }
+
+        // Filter by date strictly
+        const filtered = data.filter(f => {
+            if (!f.event_start) return false;
+            return new Date(f.event_start).toISOString().split('T')[0] === date;
+        });
+
         if (filtered.length === 0) {
-            container.innerHTML = '<p style="text-align:center; padding: 40px;">No flights found for this route on the selected date.</p>';
+            container.innerHTML = '<p style="text-align:center; padding: 40px;">No flights found for the selected date.</p>';
             return;
         }
         renderFlightResults(filtered, container);
     } catch (err) {
         console.error("Search failed:", err.message);
-        container.innerHTML = '<p style="text-align:center;">Error loading flights.</p>';
+        container.innerHTML = `<p style="text-align:center; padding: 40px;">Error loading flights: ${err.message}</p>`;
     }
 }
 
@@ -361,14 +428,17 @@ async function bookFlight(flightNumber, bookingClass, useVoucher) {
             else currentUserState.vouchers.first = val;
         }
 
-        document.getElementById(`flight-${flightNumber}`).innerHTML = `
-            <div class="success-card" style="grid-column: 1 / -1; width: 100%;">
-                <div class="success-icon">✓</div>
-                <h2>Booking Successful!</h2>
-                <p>A confirmation has been sent to your Discord DMs. Your ${bookingClass} seat is confirmed.</p>
-                <button class="btn btn-outline btn-sm" style="margin-top: 20px;" onclick="location.reload()">Back to Search</button>
-            </div>
-        `;
+        const card = document.getElementById(`flight-${flightNumber}`);
+        if (card) {
+            card.innerHTML = `
+                <div class="success-card" style="grid-column: 1 / -1; width: 100%;">
+                    <div class="success-icon">✓</div>
+                    <h2>Booking Successful!</h2>
+                    <p>A confirmation has been sent to your Discord DMs. Your ${bookingClass} seat is confirmed.</p>
+                    <button class="btn btn-outline btn-sm" style="margin-top: 20px;" onclick="location.reload()">Back to Search</button>
+                </div>
+            `;
+        }
     } catch (err) {
         console.error("Booking failed:", err.message);
         alert("Booking failed: " + err.message);
@@ -400,9 +470,14 @@ function updateAuthUI() {
     if (userProfile && loginBtn) {
         loginBtn.style.display = 'none';
         userProfile.style.display = 'flex';
-        userProfile.querySelector('#user-name').innerText = currentUserState.username;
-        userProfile.querySelector('#user-stats').innerText = `Tier: ${currentUserState.tier} | ${currentUserState.miles.toLocaleString()} Miles`;
-        if (currentUserState.avatar) userProfile.querySelector('img').src = currentUserState.avatar;
+
+        const nameEl = userProfile.querySelector('#user-name');
+        const statsEl = userProfile.querySelector('#user-stats');
+        const avatarEl = userProfile.querySelector('img');
+
+        if (nameEl) nameEl.innerText = currentUserState.username;
+        if (statsEl) statsEl.innerText = `Tier: ${currentUserState.tier} | ${currentUserState.miles.toLocaleString()} Miles`;
+        if (avatarEl && currentUserState.avatar) avatarEl.src = currentUserState.avatar;
 
         userProfile.classList.remove('status-silver', 'status-gold', 'status-bronze');
         const tierLower = currentUserState.tier.toLowerCase();
@@ -448,16 +523,22 @@ function renderDropdown(parent) {
 
 // --- Initialize ---
 document.addEventListener('DOMContentLoaded', async () => {
+    initSupabase();
+
+    // Run async checks
     await checkUserSession();
     await fetchActiveFlightData();
+
     initBookingMask();
 
-    // Restore Global Login Listeners
-    const loginBtns = document.querySelectorAll('#login-btn, .btn-primary:not(header .btn-primary)');
+    // Global Login Listeners (Excluding header button which is handled by updateAuthUI if needed, but the original logic attached it to all)
+    const loginBtns = document.querySelectorAll('#login-btn, .btn-primary');
     loginBtns.forEach(btn => {
+        if (btn.id === 'search-flights-btn') return; // Skip search button
         btn.addEventListener('click', (e) => {
-            if (btn.innerText.toLowerCase().includes('discord') || btn.id === 'login-btn') {
-                if (btn.getAttribute('href') === '#' || !btn.getAttribute('href')) {
+            const text = btn.innerText.toLowerCase();
+            if (text.includes('discord') || btn.id === 'login-btn' || text.includes('sign in')) {
+                if (btn.getAttribute('href') === '#' || !btn.getAttribute('href') || btn.tagName === 'BUTTON') {
                     e.preventDefault();
                     signInWithDiscord();
                 }
@@ -465,12 +546,16 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     });
 
-    // Restore Stats Animation
-    const statsGrid = document.querySelector('.stats-grid');
+    // Stats Animation Intersection Observer
+    const statsGrid = document.querySelector('.stats-grid') || document.querySelector('.tiers-grid');
     if (statsGrid) {
-        new IntersectionObserver((entries, obs) => {
-            if (entries[0].isIntersecting) { animateStats(); obs.disconnect(); }
-        }).observe(statsGrid);
+        const observer = new IntersectionObserver((entries) => {
+            if (entries[0].isIntersecting) {
+                animateStats();
+                observer.disconnect();
+            }
+        });
+        observer.observe(statsGrid);
     }
 
     // Mobile Menu
@@ -492,5 +577,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 });
 
+// Expose globally
 window.signInWithDiscord = signInWithDiscord;
 window.bookFlight = bookFlight;

@@ -476,7 +476,7 @@ function renderFlightResults(flights, container) {
 
         details.appendChild(createDetail('Aircraft', highlightAircraft(f.aircraft_type)));
 
-        let carrierVal = 'Doncor Wings';
+        let carrierVal = 'Doncor Airline PTFS';
         let carrierLink = null;
         if (f.is_codeshare) {
             carrierVal = `Operated by ${f.codeshare_airline}`;

@@ -37,7 +37,7 @@ function initSupabase() {
 
 function calculateTier(miles) {
     const m = parseInt(miles) || 0;
-    if (m >= 72000) return "Gold Captain (Elite)";
+    if (m >= 72000) return "Gold Captain";
     if (m >= 36000) return "Silver Commander";
     if (m >= 12000) return "Bronze Aviator";
     return "White Wing";
@@ -77,16 +77,35 @@ async function checkUserSession() {
             const { data: profile } = await dbClient.from('profiles').select('*').eq('id', user.id).single();
 
             const miles = profile?.mileage_points || 0;
+            const tier = calculateTier(miles);
+            let bVouchers = profile?.business_vouchers || 0;
+            let fVouchers = profile?.first_vouchers || 0;
+
+            // Advanced Tier/Voucher UI State Logic
+            // We keep the real counts from DB now for visibility if they exist
+            // but we can still treat them as 0 for display if Tier grants permanent access
+            let displayBVouchers = bVouchers;
+            let displayFVouchers = fVouchers;
+
+            if (tier === "Silver Commander") {
+                displayBVouchers = 0; // Permanent Business
+            } else if (tier === "Gold Captain") {
+                displayBVouchers = 0;
+                displayFVouchers = 0; // All permanent
+            }
+
             currentUserState = {
                 id: user.id,
                 discord_id: discordId,
                 username: discordName,
-                tier: calculateTier(miles),
+                tier: tier,
                 miles: miles,
                 avatar: meta.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(discordName)}`,
                 vouchers: {
-                    business: profile?.business_vouchers || 0,
-                    first: profile?.first_vouchers || 0
+                    business: bVouchers,
+                    first: fVouchers,
+                    displayBusiness: displayBVouchers,
+                    displayFirst: displayFVouchers
                 },
                 bookings: []
             };
@@ -362,11 +381,19 @@ function renderFlightResults(flights, container) {
                 a.rel = 'noopener noreferrer'; a.className = 'codeshare-link'; a.textContent = value;
                 d.appendChild(a);
             } else {
-                d.appendChild(document.createTextNode(value));
+                const valSpan = document.createElement('span');
+                valSpan.innerHTML = value; // Allowed for highlights
+                d.appendChild(valSpan);
             }
             return d;
         };
-        details.appendChild(createDetail('Aircraft', f.aircraft_type || "TBD"));
+
+        const highlightAircraft = (name) => {
+            if (!name) return "TBD";
+            return name.replace(/(\d+)/g, '<span class="highlight">$1</span>');
+        };
+
+        details.appendChild(createDetail('Aircraft', highlightAircraft(f.aircraft_type)));
         const carrierVal = f.is_codeshare ? `Operated by ${f.codeshare_airline}` : 'Doncor Wings';
         details.appendChild(createDetail('Carrier', carrierVal, f.is_codeshare, f.codeshare_discord_link));
         main.appendChild(details);
@@ -398,18 +425,35 @@ function renderBlock(f, cls) {
     }
 
     const { tier, vouchers } = currentUserState;
-    const isLocked = (cls === 'Business' && !(tier.includes('Silver') || tier.includes('Gold') || (tier.includes('Bronze') && vouchers.business > 0))) ||
-                     (cls === 'First' && !(tier.includes('Gold') || (tier.includes('Silver') && vouchers.first > 0)));
+
+    // Accessibility logic: Unlock if Tier permits OR if User has a voucher
+    const tierPermitsBusiness = (tier === 'Silver Commander' || tier === 'Gold Captain');
+    const tierPermitsFirst = (tier === 'Gold Captain');
+
+    const hasBusinessVoucher = vouchers.business > 0;
+    const hasFirstVoucher = vouchers.first > 0;
+
+    const canBookBusiness = tierPermitsBusiness || hasBusinessVoucher;
+    const canBookFirst = tierPermitsFirst || hasFirstVoucher;
+
+    let isLocked = false;
+    if (cls === 'Business' && !canBookBusiness) isLocked = true;
+    if (cls === 'First' && !canBookFirst) isLocked = true;
 
     if (isLocked) block.classList.add('locked');
     const bInfo = document.createElement('div'); bInfo.className = 'block-info';
     const h4 = document.createElement('h4'); h4.textContent = cls; bInfo.appendChild(h4);
-    const p = document.createElement('p'); p.textContent = cls === 'Economy' ? 'Standard Seat' : (isLocked ? 'Tier Locked' : 'Available');
+
+    const pText = cls === 'Economy' ? 'Standard Seat' : (isLocked ? 'Tier Locked' : 'Available');
+    const p = document.createElement('p'); p.textContent = pText;
     bInfo.appendChild(p); block.appendChild(bInfo);
 
     if (!isLocked) {
-        const btn = document.createElement('button'); btn.className = 'btn btn-primary btn-sm'; btn.textContent = 'Book';
-        const useVoucher = (cls === 'Business' && tier.includes('Bronze')) || (cls === 'First' && tier.includes('Silver'));
+        const useVoucher = (cls === 'Business' && !tierPermitsBusiness && hasBusinessVoucher) ||
+                           (cls === 'First' && !tierPermitsFirst && hasFirstVoucher);
+        const btn = document.createElement('button');
+        btn.className = 'btn btn-primary btn-sm';
+        btn.textContent = useVoucher ? 'Book with Voucher' : 'Book';
         btn.onclick = () => bookFlight(f.flight_number, cls, useVoucher);
         block.appendChild(btn);
     }
@@ -418,26 +462,40 @@ function renderBlock(f, cls) {
 
 async function bookFlight(fn, cls, v) {
     try {
+        // Pre-validation: ensure voucher exists locally if required
+        if (v) {
+            const currentCount = currentUserState.vouchers[cls.toLowerCase()] || 0;
+            if (currentCount <= 0) {
+                alert(`You do not have any ${cls} vouchers remaining.`);
+                return;
+            }
+        }
+
         const { error } = await dbClient.from('bookings').insert([{
             flight_number: fn, user_id: currentUserState.id, discord_id: currentUserState.discord_id,
             username: currentUserState.username, booking_class: cls, used_voucher: v
         }]);
         if (error) throw error;
 
+        // Optimistic UI update for vouchers (DB sync handled by backend bot)
         if (v) {
-            const field = cls === 'Business' ? 'business_vouchers' : 'first_vouchers';
-            const newVal = (currentUserState.vouchers[cls.toLowerCase()] || 1) - 1;
-            await dbClient.from('profiles').update({ [field]: newVal }).eq('id', currentUserState.id);
-            currentUserState.vouchers[cls.toLowerCase()] = newVal;
+            const key = cls.toLowerCase();
+            currentUserState.vouchers[key] = Math.max(0, currentUserState.vouchers[key] - 1);
+            // Also update display counts if they were active
+            if (key === 'business') currentUserState.vouchers.displayBusiness = Math.max(0, currentUserState.vouchers.displayBusiness - 1);
+            if (key === 'first') currentUserState.vouchers.displayFirst = Math.max(0, currentUserState.vouchers.displayFirst - 1);
         }
 
         const card = document.getElementById(`flight-${fn}`);
         if (card) {
-            card.innerHTML = '';
+            // Success Alert logic: Complete overlay
             const success = document.createElement('div'); success.className = 'success-card';
             const h2 = document.createElement('h2'); h2.textContent = 'Booking Successful!'; success.appendChild(h2);
-            const p = document.createElement('p'); p.textContent = `A confirmation has been sent to your Discord DMs. Your ${cls} seat is locked in.`;
-            success.appendChild(p); card.appendChild(success);
+            const p = document.createElement('p'); p.textContent = 'Your booking is being processed. A confirmation will be sent to your Discord DMs as soon as it is finalized.';
+            success.appendChild(p);
+
+            card.style.position = 'relative';
+            card.appendChild(success);
         }
 
         await fetchUserBookings();
@@ -445,15 +503,70 @@ async function bookFlight(fn, cls, v) {
     } catch (e) { alert("Booking error."); }
 }
 
+function showCustomModal(title, message, onConfirm) {
+    const modal = document.getElementById('custom-modal');
+    const titleEl = document.getElementById('modal-title');
+    const messageEl = document.getElementById('modal-message');
+    const confirmBtn = document.getElementById('modal-confirm');
+    const cancelBtn = document.getElementById('modal-cancel');
+
+    if (!modal || !titleEl || !messageEl || !confirmBtn || !cancelBtn) return;
+
+    titleEl.textContent = title;
+    messageEl.textContent = message;
+    modal.style.display = 'flex';
+
+    const close = () => {
+        modal.style.display = 'none';
+        confirmBtn.onclick = null;
+        cancelBtn.onclick = null;
+    };
+
+    confirmBtn.onclick = () => {
+        onConfirm();
+        close();
+    };
+    cancelBtn.onclick = close;
+}
+
 async function cancelBooking(id) {
-    if (!confirm("Cancel this flight?")) return;
-    try {
-        const { error } = await dbClient.from('bookings').delete().eq('id', id);
-        if (!error) {
-            await fetchUserBookings();
-            updateAuthUI();
+    showCustomModal(
+        "Cancel Booking",
+        "Are you sure you want to cancel this booking? This action cannot be undone.",
+        async () => {
+            try {
+                const { error } = await dbClient.from('bookings').delete().eq('id', id);
+                if (!error) {
+                    // Update local state by removing the booking
+                    currentUserState.bookings = currentUserState.bookings.filter(b => b.id !== id);
+
+                    // Update UI immediately (dropdown/dashboard)
+                    const dropdown = document.getElementById('user-dropdown');
+                    if (dropdown) {
+                        const items = dropdown.querySelectorAll('.booking-item-mini');
+                        items.forEach(item => {
+                            // Find the cancel button that matches the id and remove the item
+                            const btn = item.querySelector('.cancel-link');
+                            if (btn && btn.getAttribute('data-id') === id.toString()) {
+                                item.remove();
+                            }
+                        });
+
+                        // Check if list is empty
+                        const list = dropdown.querySelector('.bookings-list-mini');
+                        if (list && list.querySelectorAll('.booking-item-mini').length === 0) {
+                            list.innerHTML = '<p class="empty-state">You have no active bookings</p>';
+                        }
+                    }
+
+                    // Also trigger auth UI update to refresh stats if needed
+                    updateAuthUI();
+                } else {
+                    console.error("Supabase delete error:", error);
+                }
+            } catch (e) { console.error("Cancel failed:", e.message); }
         }
-    } catch (e) { console.error("Cancel failed."); }
+    );
 }
 
 // --- UI Logic ---
@@ -498,6 +611,29 @@ function renderProfileDropdown(parent) {
     const small = document.createElement('small'); small.textContent = currentUserState.tier; dHeader.appendChild(small);
     dropdown.appendChild(dHeader);
 
+    // Voucher Display Logic: Show if user has displayable vouchers > 0
+    const { vouchers } = currentUserState;
+    if (vouchers.displayBusiness > 0 || vouchers.displayFirst > 0) {
+        const divV = document.createElement('div'); divV.className = 'dropdown-divider'; dropdown.appendChild(divV);
+        const dVouchers = document.createElement('div'); dVouchers.className = 'dropdown-info';
+
+        if (vouchers.displayBusiness > 0) {
+            const row = document.createElement('div'); row.style.display = 'flex'; row.style.justifyContent = 'space-between'; row.style.alignItems = 'center'; row.style.marginBottom = '5px';
+            const vLabel = document.createElement('small'); vLabel.textContent = 'Business Vouchers';
+            const vVal = document.createElement('div'); vVal.className = 'user-tier-badge'; vVal.textContent = vouchers.business;
+            row.appendChild(vLabel); row.appendChild(vVal);
+            dVouchers.appendChild(row);
+        }
+        if (vouchers.displayFirst > 0) {
+            const row = document.createElement('div'); row.style.display = 'flex'; row.style.justifyContent = 'space-between'; row.style.alignItems = 'center';
+            const vLabel = document.createElement('small'); vLabel.textContent = 'First Class Vouchers';
+            const vVal = document.createElement('div'); vVal.className = 'user-tier-badge'; vVal.textContent = vouchers.first;
+            row.appendChild(vLabel); row.appendChild(vVal);
+            dVouchers.appendChild(row);
+        }
+        dropdown.appendChild(dVouchers);
+    }
+
     const div1 = document.createElement('div'); div1.className = 'dropdown-divider'; dropdown.appendChild(div1);
 
     const dInfo = document.createElement('div'); dInfo.className = 'dropdown-info';
@@ -514,7 +650,10 @@ function renderProfileDropdown(parent) {
             const clsS = document.createElement('small'); clsS.textContent = b.booking_class; txt.appendChild(clsS);
             item.appendChild(txt);
 
-            const btn = document.createElement('button'); btn.className = 'cancel-link'; btn.textContent = 'Cancel';
+            const btn = document.createElement('button');
+            btn.className = 'cancel-link';
+            btn.textContent = 'Cancel';
+            btn.setAttribute('data-id', b.id);
             btn.onclick = (e) => { e.stopPropagation(); cancelBooking(b.id); };
             item.appendChild(btn);
             list.appendChild(item);

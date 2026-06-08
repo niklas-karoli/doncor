@@ -28,6 +28,7 @@ let appData = {
     arrivalAirports: [],
     flightDates: [],
     selectedDate: null,
+    lastSearchResults: [],
     isDataLoaded: false
 };
 
@@ -104,6 +105,20 @@ async function handleAuthStateChange(event, session) {
             const tier = calculateTier(miles);
             let bVouchers = profile?.business_vouchers || 0;
             let fVouchers = profile?.first_vouchers || 0;
+
+            // Optimistic Persistence Layer
+            const storedVouchers = sessionStorage.getItem('optimistic_vouchers');
+            if (storedVouchers) {
+                const ov = JSON.parse(storedVouchers);
+                if (ov.user_id === user.id) {
+                    if (bVouchers <= ov.business && fVouchers <= ov.first) {
+                        sessionStorage.removeItem('optimistic_vouchers');
+                    } else {
+                        bVouchers = ov.business;
+                        fVouchers = ov.first;
+                    }
+                }
+            }
 
             // Advanced Tier/Voucher UI State Logic:
             // Show if > 0 AND tier hasn't granted permanent access
@@ -323,9 +338,11 @@ async function performSearch(dep, arr, date) {
         const filtered = (data || []).filter(f => getLocalDateStr(f.event_start) === date);
 
         if (filtered.length === 0) {
+            appData.lastSearchResults = [];
             container.innerHTML = '<p style="text-align:center; padding:40px;">No flights found for this route and date.</p>';
             return;
         }
+        appData.lastSearchResults = filtered;
         renderFlightResults(filtered, container);
     } catch (e) { container.innerHTML = '<p>Search error.</p>'; }
 }
@@ -521,27 +538,62 @@ async function bookFlight(fn, cls, v) {
             throw error;
         }
 
-        // Optimistic UI update for vouchers
+        // --- Optimistic UI Updates ---
+
+        // 1. Update Voucher State & Persistence
         if (v) {
             const key = cls.toLowerCase();
             currentUserState.vouchers[key] = Math.max(0, currentUserState.vouchers[key] - 1);
-            // Also update display counts
-            if (key === 'business') currentUserState.vouchers.displayBusiness = Math.max(0, currentUserState.vouchers.displayBusiness - 1);
-            if (key === 'first') currentUserState.vouchers.displayFirst = Math.max(0, currentUserState.vouchers.displayFirst - 1);
 
-            // Re-render profile dropdown if open to reflect new voucher count
-            const dropdown = document.getElementById('user-dropdown');
-            if (dropdown) {
-                const userProfile = document.getElementById('user-profile');
-                if (userProfile) {
-                    dropdown.remove();
-                    renderProfileDropdown(userProfile);
-                }
+            // Update display counts based on tier logic
+            const { tier } = currentUserState;
+            currentUserState.vouchers.displayBusiness = (tier !== "Silver Commander" && tier !== "Gold Captain") ? currentUserState.vouchers.business : 0;
+            currentUserState.vouchers.displayFirst = (tier !== "Gold Captain") ? currentUserState.vouchers.first : 0;
+
+            // Persist to sessionStorage to handle the redirect/re-fetch race condition
+            sessionStorage.setItem('optimistic_vouchers', JSON.stringify({
+                user_id: currentUserState.id,
+                business: currentUserState.vouchers.business,
+                first: currentUserState.vouchers.first
+            }));
+        }
+
+        // 2. Mock the new booking in local state
+        // This ensures the flight card swaps to "Already Booked" and the dropdown shows it
+        const mockFlight = appData.lastSearchResults.find(f => f.flight_number === fn) || { departure_airport: 'TBD', destination_airport: 'TBD' };
+        currentUserState.bookings.push({
+            id: 'temp-' + Date.now(),
+            flight_number: fn,
+            user_id: currentUserState.id,
+            booking_class: cls,
+            used_voucher: v,
+            flights: mockFlight
+        });
+
+        // 3. Immediate DOM Updates
+        updateAuthUI(); // Updates the top bar
+
+        // Re-render dropdown if it's currently open
+        const dropdown = document.getElementById('user-dropdown');
+        if (dropdown) {
+            const userProfile = document.getElementById('user-profile');
+            if (userProfile) {
+                dropdown.remove();
+                renderProfileDropdown(userProfile);
             }
         }
 
-        // Redirect to success page
-        window.location.replace('booking-success.html');
+        // Re-render flight cards to show "Already Booked" and disabled voucher buttons
+        const container = document.getElementById('flights-container');
+        if (container && appData.lastSearchResults.length > 0) {
+            renderFlightResults(appData.lastSearchResults, container);
+        }
+
+        // 4. Artificial Delay (3.5 seconds) for premium feel and text readability
+        setTimeout(() => {
+            window.location.replace('booking-success.html');
+        }, 3500);
+
     } catch (e) {
         console.error("Booking error:", e.message);
         alert("Booking error.");

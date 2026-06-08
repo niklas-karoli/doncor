@@ -13,6 +13,7 @@ const PARTNER_AIRLINES = {
 
 const LOGO_SVG_MINI = `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" style="width:14px; height:14px; vertical-align:middle; margin-left:4px; display:inline-block;">
     <path d="M10 50 L40 20 L90 20 L50 50 L90 80 L40 80 Z" fill="#FFC800"/>
+    <path d="M20 50 L45 35 L75 35 L50 50 L75 65 L45 65 Z" fill="#ffffff" opacity="0.8"/>
 </svg>`;
 
 let currentUserState = {
@@ -583,12 +584,20 @@ async function bookFlight(fn, cls, v) {
             throw error;
         }
 
-        // --- Optimistic UI Updates ---
+        // --- Optimistic UI Updates & DB Sync ---
 
-        // 1. Update Voucher State & Persistence
+        // 1. Update Voucher State, DB & Persistence
         if (v) {
             const key = cls.toLowerCase();
+            const col = key === 'business' ? 'business_vouchers' : 'first_vouchers';
             currentUserState.vouchers[key] = Math.max(0, currentUserState.vouchers[key] - 1);
+
+            // Execute database deduction
+            const { error: syncError } = await dbClient.from('profiles')
+                .update({ [col]: currentUserState.vouchers[key] })
+                .eq('id', currentUserState.id);
+
+            if (syncError) console.error("Voucher sync failed:", syncError.message);
 
             // Update display counts based on tier logic
             const { tier } = currentUserState;
@@ -682,11 +691,19 @@ async function cancelBooking(id) {
             try {
                 const { error } = await dbClient.from('bookings').delete().eq('id', id);
                 if (!error) {
-                    // Optimistic Voucher Increment
+                    // Optimistic Voucher Increment & DB Sync
                     if (booking.used_voucher) {
                         const cls = booking.booking_class.toLowerCase();
+                        const col = cls === 'business' ? 'business_vouchers' : 'first_vouchers';
                         if (cls === 'business' || cls === 'first') {
                             currentUserState.vouchers[cls]++;
+
+                            // Execute database refund
+                            const { error: syncError } = await dbClient.from('profiles')
+                                .update({ [col]: currentUserState.vouchers[cls] })
+                                .eq('id', currentUserState.id);
+
+                            if (syncError) console.error("Voucher refund failed:", syncError.message);
 
                             // Update display counts based on tier logic
                             const { tier } = currentUserState;

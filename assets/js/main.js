@@ -561,9 +561,17 @@ function renderBlock(f, cls) {
 
 async function bookFlight(fn, cls, v) {
     try {
+        // Normalize class strings to match internal keys ('business' or 'first')
+        const normalizedCls = cls.toLowerCase();
+        const classKey = normalizedCls.includes('business') ? 'business' : normalizedCls.includes('first') ? 'first' : 'economy';
+
         // Pre-validation: ensure voucher exists locally if required
         if (v) {
-            const currentCount = currentUserState.vouchers[cls.toLowerCase()] || 0;
+            if (classKey === 'economy') {
+                alert("Economy class bookings do not accept vouchers.");
+                return;
+            }
+            const currentCount = currentUserState.vouchers[classKey] || 0;
             if (currentCount <= 0) {
                 alert(`You do not have any ${cls} vouchers remaining.`);
                 return;
@@ -575,8 +583,12 @@ async function bookFlight(fn, cls, v) {
         if (loadingOverlay) loadingOverlay.style.display = 'flex';
 
         const { error } = await dbClient.from('bookings').insert([{
-            flight_number: fn, user_id: currentUserState.id, discord_id: currentUserState.discord_id,
-            username: currentUserState.username, booking_class: cls, used_voucher: v
+            flight_number: fn, 
+            user_id: currentUserState.id, 
+            discord_id: currentUserState.discord_id,
+            username: currentUserState.username, 
+            booking_class: cls, 
+            used_voucher: v
         }]);
 
         if (error) {
@@ -650,8 +662,8 @@ async function bookFlight(fn, cls, v) {
         }, 3500);
 
     } catch (e) {
-        console.error("Booking error:", e.message);
-        alert("Booking error.");
+        console.error("Booking error details:", e.message);
+        alert("An error occurred while processing your booking.");
     }
 }
 

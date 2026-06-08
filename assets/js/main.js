@@ -599,20 +599,20 @@ async function bookFlight(fn, cls, v) {
         // --- Optimistic UI Updates & DB Sync ---
 
         // 1. Update Voucher State, DB & Persistence
-        if (v && classKey !== 'economy') {
-            const col = classKey === 'business' ? 'business_vouchers' : 'first_vouchers';
-            
-            // Decrement local state safely
-            currentUserState.vouchers[classKey] = Math.max(0, (currentUserState.vouchers[classKey] || 0) - 1);
+        if (v) {
+            const key = cls.toLowerCase();
+            const col = key === 'business' ? 'business_vouchers' : 'first_vouchers';
+            currentUserState.vouchers[key] = Math.max(0, currentUserState.vouchers[key] - 1);
 
-            // Execute database deduction using the correct column name
-            const { error: syncError } = await dbClient.from('profiles')
-                .update({ [col]: currentUserState.vouchers[classKey] })
-                .eq('id', currentUserState.id);
+            // Execute database deduction via secure RPC
+            const { error: syncError } = await dbClient.rpc('update_user_vouchers', {
+                target_column: col,
+                new_value: currentUserState.vouchers[key]
+            });
 
-            if (syncError) console.error("Voucher database sync failed:", syncError.message);
+            if (syncError) console.error("Voucher sync failed:", syncError.message);
 
-            // Update display counts based on tier restriction logic
+            // Update display counts based on tier logic
             const { tier } = currentUserState;
             currentUserState.vouchers.displayBusiness = (tier !== "Silver Commander" && tier !== "Gold Captain") ? currentUserState.vouchers.business : 0;
             currentUserState.vouchers.displayFirst = (tier !== "Gold Captain") ? currentUserState.vouchers.first : 0;
@@ -638,7 +638,7 @@ async function bookFlight(fn, cls, v) {
         });
 
         // 3. Immediate DOM Updates
-        updateAuthUI(); // Updates the top nav bar mileage/status metrics
+        updateAuthUI(); // Updates the top bar
 
         // Re-render dropdown if it's currently open
         const dropdown = document.getElementById('user-dropdown');
@@ -711,10 +711,11 @@ async function cancelBooking(id) {
                         if (cls === 'business' || cls === 'first') {
                             currentUserState.vouchers[cls]++;
 
-                            // Execute database refund
-                            const { error: syncError } = await dbClient.from('profiles')
-                                .update({ [col]: currentUserState.vouchers[cls] })
-                                .eq('id', currentUserState.id);
+                            // Execute database refund via secure RPC
+                            const { error: syncError } = await dbClient.rpc('update_user_vouchers', {
+                                target_column: col,
+                                new_value: currentUserState.vouchers[cls]
+                            });
 
                             if (syncError) console.error("Voucher refund failed:", syncError.message);
 

@@ -1178,3 +1178,193 @@ footer {
     .btn { width: 100%; }
     .hero .container > div { flex-direction: column; }
 }
+
+/* --- Responsive Overhaul (Mobile & Tablet) --- */
+
+/* Tablet & Large Mobile Breakpoint */
+@media (max-width: 1024px) {
+    .container {
+        padding: 0 30px;
+    }
+
+    .logo-text .main-line {
+        font-size: 1.1rem;
+    }
+
+    .logo-text .sub-line {
+        font-size: 0.65rem;
+    }
+
+    .booking-container {
+        padding: 40px;
+    }
+
+    .booking-header h1 {
+        font-size: 2.8rem;
+    }
+
+    /* Grids: 2 columns on tablet */
+    .dest-grid, .tiers-grid, .fleet-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+/* Mobile Smartphone Breakpoint */
+@media (max-width: 768px) {
+    header .container {
+        padding: 0 20px;
+    }
+
+    .logo-text .main-line {
+        font-size: 1rem;
+    }
+
+    .logo-text .sub-line {
+        font-size: 0.6rem;
+    }
+
+    .logo svg {
+        width: 30px;
+        height: 30px;
+    }
+
+    .profile-area .btn-primary {
+        padding: 8px 14px;
+        font-size: 0.7rem;
+        letter-spacing: 0.5px;
+    }
+
+    /* Mobile Navigation Slide-Down */
+    nav ul {
+        display: flex !important; /* Override existing display: none */
+        position: absolute;
+        top: 80px;
+        left: 0;
+        width: 100%;
+        background-color: var(--bg-dark);
+        flex-direction: column;
+        padding: 0; /* Reset padding for animation */
+        border-bottom: none;
+        max-height: 0;
+        overflow: hidden;
+        opacity: 0;
+        transition: max-height 0.5s ease, opacity 0.3s ease, padding 0.5s ease;
+        z-index: 999;
+    }
+
+    nav ul.active {
+        max-height: 500px; /* Adjust as needed for menu content */
+        opacity: 1;
+        padding: 30px 0;
+        border-bottom: 2px solid var(--accent-yellow);
+    }
+
+    nav ul li {
+        margin: 0 0 15px 0;
+        text-align: center;
+        width: 100%;
+    }
+
+    nav ul li a {
+        display: block;
+        padding: 10px 0;
+        font-size: 1rem;
+    }
+
+    .mobile-toggle {
+        display: block;
+    }
+
+    /* Hero Section Adjustments */
+    .hero-booking {
+        padding: 140px 0 80px;
+    }
+
+    .booking-header h1 {
+        font-size: 2rem !important; /* Critical Requirement: 2rem target */
+        text-align: center;
+    }
+
+    .booking-header p {
+        font-size: 1rem;
+        text-align: center;
+    }
+
+    .booking-container {
+        padding: 30px 20px;
+    }
+
+    /* Booking Mask Vertical Stack */
+    .booking-mask {
+        grid-template-columns: 1fr;
+        gap: 15px;
+        padding: 20px;
+    }
+
+    .booking-mask .btn-primary {
+        width: 100%;
+        margin-top: 5px;
+    }
+
+    /* Flight Results Card Responsiveness */
+    .flight-card {
+        grid-template-columns: 1fr; /* Stack vertically */
+    }
+
+    .flight-main {
+        padding: 25px;
+    }
+
+    .flight-route {
+        gap: 20px;
+        flex-wrap: wrap;
+        justify-content: center;
+    }
+
+    .route-time {
+        font-size: 1.5rem;
+    }
+
+    .route-arrow {
+        width: 100%;
+        margin: 10px 0;
+    }
+
+    .flight-details {
+        flex-direction: column;
+        gap: 15px;
+    }
+
+    .booking-options {
+        border-left: none;
+        border-top: 1px dashed rgba(255, 200, 0, 0.4); /* Horizontal Divider */
+        padding: 25px;
+        width: 100%;
+    }
+
+    .already-booked-alert {
+        border-left: none;
+        border-top: 4px solid var(--accent-yellow);
+        width: 100%;
+    }
+
+    /* Grids: 1 column on mobile */
+    .dest-grid, .tiers-grid, .fleet-grid {
+        grid-template-columns: 1fr;
+    }
+
+    /* Footer adjustments */
+    footer .logo {
+        flex-direction: column;
+        text-align: center;
+    }
+
+    footer .logo svg {
+        margin-right: 0;
+        margin-bottom: 10px;
+    }
+
+    .section-title {
+        font-size: 2rem;
+    }
+}

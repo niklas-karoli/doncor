@@ -11,6 +11,11 @@ const PARTNER_AIRLINES = {
     "Scoot PTFS": "https://discord.gg/BkqQJuUN4f"
 };
 
+const LOGO_SVG_MINI = `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" style="width:14px; height:14px; vertical-align:middle; margin-left:4px; display:inline-block;">
+    <path d="M10 50 L40 20 L90 20 L50 50 L90 80 L40 80 Z" fill="#FFC800"/>
+    <path d="M20 50 L45 35 L75 35 L50 50 L75 65 L45 65 Z" fill="#ffffff" opacity="0.8"/>
+</svg>`;
+
 let currentUserState = {
     id: null,
     discord_id: '',
@@ -28,6 +33,7 @@ let appData = {
     arrivalAirports: [],
     flightDates: [],
     selectedDate: null,
+    lastSearchResults: [],
     isDataLoaded: false
 };
 
@@ -98,12 +104,49 @@ async function handleAuthStateChange(event, session) {
         const discordId = meta.provider_id || user.id;
 
         try {
-            const { data: profile } = await dbClient.from('profiles').select('*').eq('id', user.id).single();
+            const { data: profile } = await dbClient
+                .from('profiles')
+                .select('mileage_points, business_vouchers, first_vouchers')
+                .eq('id', user.id)
+                .single();
 
             const miles = profile?.mileage_points || 0;
             const tier = calculateTier(miles);
             let bVouchers = profile?.business_vouchers || 0;
             let fVouchers = profile?.first_vouchers || 0;
+
+            // Optimistic Persistence Layer
+            // Clear storage on fresh login or explicit refresh to avoid stale overrides
+            if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION') {
+                const storedVouchers = sessionStorage.getItem('optimistic_vouchers');
+                if (storedVouchers) {
+                    const ov = JSON.parse(storedVouchers);
+                    // Only use it if it matches the current user AND the database hasn't updated yet
+                    // Logic: If we were expecting a change, and the DB still shows the old value
+                    // However, to satisfy "overwritten by a fresh, verified Supabase fetch",
+                    // we should be careful. The user wants the DB to be the source of truth on load.
+
+                    // Let's implement the "database has caught up" logic more strictly
+                    if (ov.user_id === user.id) {
+                        // If DB already reflects or surpasses the optimistic state (for both directions)
+                        // this is tricky because we don't know if it was a book or cancel.
+                        // But usually, we only use this for the immediate redirect.
+
+                        // We clear it if it matches exactly, or if it's a fresh login
+                        if (bVouchers === ov.business && fVouchers === ov.first) {
+                            sessionStorage.removeItem('optimistic_vouchers');
+                        } else {
+                            // If we just loaded the page and there's a mismatch,
+                            // we might still be in the "3.5s delay" window or just after.
+                            // But the user said: "Kill Stale Overrides: Ensure sessionStorage overrides are completely cleared
+                            // and overwritten by a fresh, verified Supabase fetch upon a successful login or hard reload."
+
+                            // So if event is INITIAL_SESSION or SIGNED_IN, we KILL it.
+                            sessionStorage.removeItem('optimistic_vouchers');
+                        }
+                    }
+                }
+            }
 
             // Advanced Tier/Voucher UI State Logic:
             // Show if > 0 AND tier hasn't granted permanent access
@@ -280,10 +323,28 @@ function renderCalendar(date, container, input) {
         grid.appendChild(div);
     }
 
+    const depVal = document.getElementById('departure-input')?.value || "";
+    const arrVal = document.getElementById('arrival-input')?.value || "";
+
+    // Strictly filter dates based on route if both fields are filled
+    let filteredDates = appData.flightDates;
+    if (depVal && arrVal) {
+        filteredDates = [...new Set(appData.activeFlights
+            .filter(f => f.departure_airport === depVal && f.destination_airport === arrVal)
+            .map(f => getLocalDateStr(f.event_start))
+            .filter(Boolean))];
+    } else if (depVal || arrVal) {
+        // According to directive: "strictly wait until both Departure and Arrival fields are filled out"
+        // So we show no highlights if only one is filled? Or show all?
+        // "If no route is selected yet, it can remain blank or show all"
+        // Let's go with blank highlights if partially filled to be "strict".
+        filteredDates = [];
+    }
+
     for(let d=1; d<=daysInMonth; d++) {
         const ds = `${year}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
         const div = document.createElement('div');
-        const hasFlight = appData.flightDates.includes(ds);
+        const hasFlight = filteredDates.includes(ds);
         const isSelected = appData.selectedDate === ds;
 
         div.className = 'calendar-day';
@@ -323,9 +384,11 @@ async function performSearch(dep, arr, date) {
         const filtered = (data || []).filter(f => getLocalDateStr(f.event_start) === date);
 
         if (filtered.length === 0) {
+            appData.lastSearchResults = [];
             container.innerHTML = '<p style="text-align:center; padding:40px;">No flights found for this route and date.</p>';
             return;
         }
+        appData.lastSearchResults = filtered;
         renderFlightResults(filtered, container);
     } catch (e) { container.innerHTML = '<p>Search error.</p>'; }
 }
@@ -337,21 +400,21 @@ function renderFlightResults(flights, container) {
         card.className = 'flight-card';
         card.id = `flight-${f.flight_number}`;
 
-        const newDepTime = new Date(f.event_start);
-        const originalArrTime = new Date(f.event_end);
+        const eventDep = new Date(f.event_start);
+        const eventArr = new Date(f.event_end);
+        const durationMs = eventArr.getTime() - eventDep.getTime();
 
-        let displayDepTime = newDepTime;
-        let displayArrTime = originalArrTime;
+        let displayDepTime = eventDep;
+        let displayArrTime = eventArr;
         let origDepStr = '', origArrStr = '';
 
         const isDel = f.is_delayed && f.original_start;
         if (isDel) {
             const origDep = new Date(f.original_start);
-            const offset = newDepTime.getTime() - origDep.getTime();
-            displayArrTime = new Date(originalArrTime.getTime() + offset);
+            const origArr = new Date(origDep.getTime() + durationMs);
 
             origDepStr = origDep.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
-            origArrStr = originalArrTime.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+            origArrStr = origArr.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
         }
 
         const depStr = displayDepTime.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
@@ -385,9 +448,9 @@ function renderFlightResults(flights, container) {
         route.appendChild(createPoint(arrStr, f.destination_airport, isDel, origArrStr));
         main.appendChild(route);
 
-        const dur = Math.floor((displayArrTime - displayDepTime)/60000);
+        const durMin = Math.floor(durationMs/60000);
         const durDiv = document.createElement('div'); durDiv.className = 'flight-duration';
-        durDiv.textContent = `Duration: ${Math.floor(dur/60)}h ${dur%60}m`;
+        durDiv.textContent = `Duration: ${Math.floor(durMin/60)}h ${durMin%60}m`;
         main.appendChild(durDiv);
 
         const details = document.createElement('div'); details.className = 'flight-details';
@@ -521,27 +584,71 @@ async function bookFlight(fn, cls, v) {
             throw error;
         }
 
-        // Optimistic UI update for vouchers
+        // --- Optimistic UI Updates & DB Sync ---
+
+        // 1. Update Voucher State, DB & Persistence
         if (v) {
             const key = cls.toLowerCase();
+            const col = key === 'business' ? 'business_vouchers' : 'first_vouchers';
             currentUserState.vouchers[key] = Math.max(0, currentUserState.vouchers[key] - 1);
-            // Also update display counts
-            if (key === 'business') currentUserState.vouchers.displayBusiness = Math.max(0, currentUserState.vouchers.displayBusiness - 1);
-            if (key === 'first') currentUserState.vouchers.displayFirst = Math.max(0, currentUserState.vouchers.displayFirst - 1);
 
-            // Re-render profile dropdown if open to reflect new voucher count
-            const dropdown = document.getElementById('user-dropdown');
-            if (dropdown) {
-                const userProfile = document.getElementById('user-profile');
-                if (userProfile) {
-                    dropdown.remove();
-                    renderProfileDropdown(userProfile);
-                }
+            // Execute database deduction via secure RPC
+            const { error: syncError } = await dbClient.rpc('update_user_vouchers', {
+                target_column: col,
+                new_value: currentUserState.vouchers[key]
+            });
+
+            if (syncError) console.error("Voucher sync failed:", syncError.message);
+
+            // Update display counts based on tier logic
+            const { tier } = currentUserState;
+            currentUserState.vouchers.displayBusiness = (tier !== "Silver Commander" && tier !== "Gold Captain") ? currentUserState.vouchers.business : 0;
+            currentUserState.vouchers.displayFirst = (tier !== "Gold Captain") ? currentUserState.vouchers.first : 0;
+
+            // Persist to sessionStorage to handle the redirect/re-fetch race condition
+            sessionStorage.setItem('optimistic_vouchers', JSON.stringify({
+                user_id: currentUserState.id,
+                business: currentUserState.vouchers.business,
+                first: currentUserState.vouchers.first
+            }));
+        }
+
+        // 2. Mock the new booking in local state
+        // This ensures the flight card swaps to "Already Booked" and the dropdown shows it
+        const mockFlight = appData.lastSearchResults.find(f => f.flight_number === fn) || { departure_airport: 'TBD', destination_airport: 'TBD' };
+        currentUserState.bookings.push({
+            id: 'temp-' + Date.now(),
+            flight_number: fn,
+            user_id: currentUserState.id,
+            booking_class: cls,
+            used_voucher: v,
+            flights: mockFlight
+        });
+
+        // 3. Immediate DOM Updates
+        updateAuthUI(); // Updates the top bar
+
+        // Re-render dropdown if it's currently open
+        const dropdown = document.getElementById('user-dropdown');
+        if (dropdown) {
+            const userProfile = document.getElementById('user-profile');
+            if (userProfile) {
+                dropdown.remove();
+                renderProfileDropdown(userProfile);
             }
         }
 
-        // Redirect to success page
-        window.location.replace('booking-success.html');
+        // Re-render flight cards to show "Already Booked" and disabled voucher buttons
+        const container = document.getElementById('flights-container');
+        if (container && appData.lastSearchResults.length > 0) {
+            renderFlightResults(appData.lastSearchResults, container);
+        }
+
+        // 4. Artificial Delay (3.5 seconds) for premium feel and text readability
+        setTimeout(() => {
+            window.location.replace('booking-success.html');
+        }, 3500);
+
     } catch (e) {
         console.error("Booking error:", e.message);
         alert("Booking error.");
@@ -575,6 +682,9 @@ function showCustomModal(title, message, onConfirm) {
 }
 
 async function cancelBooking(id) {
+    const booking = currentUserState.bookings.find(b => b.id === id);
+    if (!booking) return;
+
     showCustomModal(
         "Cancel Booking",
         "Are you sure you want to cancel this booking? This action cannot be undone.",
@@ -582,6 +692,35 @@ async function cancelBooking(id) {
             try {
                 const { error } = await dbClient.from('bookings').delete().eq('id', id);
                 if (!error) {
+                    // Optimistic Voucher Increment & DB Sync
+                    if (booking.used_voucher) {
+                        const cls = booking.booking_class.toLowerCase();
+                        const col = cls === 'business' ? 'business_vouchers' : 'first_vouchers';
+                        if (cls === 'business' || cls === 'first') {
+                            currentUserState.vouchers[cls]++;
+
+                            // Execute database refund via secure RPC
+                            const { error: syncError } = await dbClient.rpc('update_user_vouchers', {
+                                target_column: col,
+                                new_value: currentUserState.vouchers[cls]
+                            });
+
+                            if (syncError) console.error("Voucher refund failed:", syncError.message);
+
+                            // Update display counts based on tier logic
+                            const { tier } = currentUserState;
+                            currentUserState.vouchers.displayBusiness = (tier !== "Silver Commander" && tier !== "Gold Captain") ? currentUserState.vouchers.business : 0;
+                            currentUserState.vouchers.displayFirst = (tier !== "Gold Captain") ? currentUserState.vouchers.first : 0;
+
+                            // Update persistence to avoid race condition on refresh
+                            sessionStorage.setItem('optimistic_vouchers', JSON.stringify({
+                                user_id: currentUserState.id,
+                                business: currentUserState.vouchers.business,
+                                first: currentUserState.vouchers.first
+                            }));
+                        }
+                    }
+
                     // Update local state by removing the booking
                     currentUserState.bookings = currentUserState.bookings.filter(b => b.id !== id);
 
@@ -625,7 +764,9 @@ function updateAuthUI() {
         const avatarEl = userProfile.querySelector('img');
 
         if (nameEl) nameEl.textContent = currentUserState.username;
-        if (statsEl) statsEl.textContent = `${currentUserState.tier} | ${currentUserState.miles.toLocaleString()} Miles`;
+        if (statsEl) {
+            statsEl.innerHTML = `${currentUserState.tier} | ${currentUserState.miles.toLocaleString()} ${LOGO_SVG_MINI}`;
+        }
         if (avatarEl) avatarEl.src = currentUserState.avatar;
 
         setupUserDropdown(userProfile);

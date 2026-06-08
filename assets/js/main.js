@@ -52,28 +52,48 @@ function getLocalDateStr(date) {
 // --- Auth & Profile ---
 async function signInWithDiscord() {
     if (!dbClient) return;
-    await dbClient.auth.signInWithOAuth({
+    const { error } = await dbClient.auth.signInWithOAuth({
         provider: 'discord',
-        options: { redirectTo: window.location.origin + '/discord/' }
+        options: { redirectTo: window.location.origin }
     });
+    if (error) console.error('Login error:', error.message);
 }
 
 async function handleLogout() {
     if (!dbClient) return;
     await dbClient.auth.signOut();
-    window.location.reload();
+    // Local state reset handled by onAuthStateChange
 }
 
-async function checkUserSession() {
-    if (!dbClient) return;
-    try {
-        const { data: { session } } = await dbClient.auth.getSession();
-        if (session) {
-            const user = session.user;
-            const meta = user.user_metadata || {};
-            const discordName = meta.full_name || meta.global_name || meta.user_name || "Virtual Pilot";
-            const discordId = meta.provider_id || user.id;
+function resetUserState() {
+    currentUserState = {
+        id: null,
+        discord_id: '',
+        username: '',
+        tier: 'White Wing',
+        miles: 0,
+        avatar: '',
+        vouchers: { business: 0, first: 0 },
+        bookings: []
+    };
 
+    const userProfile = document.getElementById('user-profile');
+    const loginBtn = document.getElementById('login-btn');
+    if (userProfile) userProfile.style.display = 'none';
+    if (loginBtn) loginBtn.style.display = 'inline-block';
+
+    const dropdown = document.getElementById('user-dropdown');
+    if (dropdown) dropdown.remove();
+}
+
+async function handleAuthStateChange(event, session) {
+    if (session) {
+        const user = session.user;
+        const meta = user.user_metadata || {};
+        const discordName = meta.full_name || meta.global_name || meta.user_name || "Virtual Pilot";
+        const discordId = meta.provider_id || user.id;
+
+        try {
             const { data: profile } = await dbClient.from('profiles').select('*').eq('id', user.id).single();
 
             const miles = profile?.mileage_points || 0;
@@ -81,18 +101,10 @@ async function checkUserSession() {
             let bVouchers = profile?.business_vouchers || 0;
             let fVouchers = profile?.first_vouchers || 0;
 
-            // Advanced Tier/Voucher UI State Logic
-            // We keep the real counts from DB now for visibility if they exist
-            // but we can still treat them as 0 for display if Tier grants permanent access
-            let displayBVouchers = bVouchers;
-            let displayFVouchers = fVouchers;
-
-            if (tier === "Silver Commander") {
-                displayBVouchers = 0; // Permanent Business
-            } else if (tier === "Gold Captain") {
-                displayBVouchers = 0;
-                displayFVouchers = 0; // All permanent
-            }
+            // Advanced Tier/Voucher UI State Logic:
+            // Show if > 0 AND tier hasn't granted permanent access
+            let displayBVouchers = (tier !== "Silver Commander" && tier !== "Gold Captain") ? bVouchers : 0;
+            let displayFVouchers = (tier !== "Gold Captain") ? fVouchers : 0;
 
             currentUserState = {
                 id: user.id,
@@ -111,8 +123,10 @@ async function checkUserSession() {
             };
             await fetchUserBookings();
             updateAuthUI();
-        }
-    } catch (err) { console.error("Session failed:", err.message); }
+        } catch (err) { console.error("Profile fetch failed:", err.message); }
+    } else {
+        resetUserState();
+    }
 }
 
 async function fetchUserBookings() {
@@ -545,21 +559,19 @@ async function cancelBooking(id) {
                     if (dropdown) {
                         const items = dropdown.querySelectorAll('.booking-item-mini');
                         items.forEach(item => {
-                            // Find the cancel button that matches the id and remove the item
                             const btn = item.querySelector('.cancel-link');
                             if (btn && btn.getAttribute('data-id') === id.toString()) {
                                 item.remove();
                             }
                         });
 
-                        // Check if list is empty
                         const list = dropdown.querySelector('.bookings-list-mini');
                         if (list && list.querySelectorAll('.booking-item-mini').length === 0) {
                             list.innerHTML = '<p class="empty-state">You have no active bookings</p>';
                         }
                     }
 
-                    // Also trigger auth UI update to refresh stats if needed
+                    // Trigger UI update to refresh potential counters or states
                     updateAuthUI();
                 } else {
                     console.error("Supabase delete error:", error);
@@ -703,7 +715,22 @@ document.addEventListener('DOMContentLoaded', async () => {
     try {
         initSupabase();
         initMobileMenu();
-        await checkUserSession();
+
+        // Login button listener
+        const loginBtn = document.getElementById('login-btn');
+        if (loginBtn) {
+            loginBtn.addEventListener('click', async (e) => {
+                e.preventDefault();
+                await signInWithDiscord();
+            });
+        }
+
+        if (dbClient) {
+            dbClient.auth.onAuthStateChange((event, session) => {
+                handleAuthStateChange(event, session);
+            });
+        }
+
         await fetchActiveFlightData();
         initBookingMask();
 

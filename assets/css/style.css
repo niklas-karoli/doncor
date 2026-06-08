@@ -738,6 +738,21 @@ nav ul li a:hover {
     margin-top: 10px;
     max-height: 200px;
     overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: var(--accent-yellow) transparent;
+}
+
+.bookings-list-mini::-webkit-scrollbar {
+    width: 4px;
+}
+
+.bookings-list-mini::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.bookings-list-mini::-webkit-scrollbar-thumb {
+    background-color: var(--accent-yellow);
+    border-radius: 10px;
 }
 
 .booking-item-mini {

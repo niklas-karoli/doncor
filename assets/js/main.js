@@ -82,11 +82,16 @@ async function checkUserSession() {
             let fVouchers = profile?.first_vouchers || 0;
 
             // Advanced Tier/Voucher UI State Logic
+            // We keep the real counts from DB now for visibility if they exist
+            // but we can still treat them as 0 for display if Tier grants permanent access
+            let displayBVouchers = bVouchers;
+            let displayFVouchers = fVouchers;
+
             if (tier === "Silver Commander") {
-                bVouchers = 0; // Permanent Business, ignore count
+                displayBVouchers = 0; // Permanent Business
             } else if (tier === "Gold Captain") {
-                bVouchers = 0;
-                fVouchers = 0; // All permanent
+                displayBVouchers = 0;
+                displayFVouchers = 0; // All permanent
             }
 
             currentUserState = {
@@ -98,7 +103,9 @@ async function checkUserSession() {
                 avatar: meta.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(discordName)}`,
                 vouchers: {
                     business: bVouchers,
-                    first: fVouchers
+                    first: fVouchers,
+                    displayBusiness: displayBVouchers,
+                    displayFirst: displayFVouchers
                 },
                 bookings: []
             };
@@ -419,9 +426,19 @@ function renderBlock(f, cls) {
 
     const { tier, vouchers } = currentUserState;
 
-    // Tier-specific accessibility logic
-    const isLocked = (cls === 'Business' && !(tier === 'Silver Commander' || tier === 'Gold Captain' || (tier === 'Bronze Aviator' && vouchers.business > 0))) ||
-                     (cls === 'First' && !(tier === 'Gold Captain' || (tier === 'Silver Commander' && vouchers.first > 0)));
+    // Accessibility logic: Unlock if Tier permits OR if User has a voucher
+    const tierPermitsBusiness = (tier === 'Silver Commander' || tier === 'Gold Captain');
+    const tierPermitsFirst = (tier === 'Gold Captain');
+
+    const hasBusinessVoucher = vouchers.business > 0;
+    const hasFirstVoucher = vouchers.first > 0;
+
+    const canBookBusiness = tierPermitsBusiness || hasBusinessVoucher;
+    const canBookFirst = tierPermitsFirst || hasFirstVoucher;
+
+    let isLocked = false;
+    if (cls === 'Business' && !canBookBusiness) isLocked = true;
+    if (cls === 'First' && !canBookFirst) isLocked = true;
 
     if (isLocked) block.classList.add('locked');
     const bInfo = document.createElement('div'); bInfo.className = 'block-info';
@@ -432,7 +449,8 @@ function renderBlock(f, cls) {
     bInfo.appendChild(p); block.appendChild(bInfo);
 
     if (!isLocked) {
-        const useVoucher = (cls === 'Business' && tier === 'Bronze Aviator') || (cls === 'First' && tier === 'Silver Commander');
+        const useVoucher = (cls === 'Business' && !tierPermitsBusiness && hasBusinessVoucher) ||
+                           (cls === 'First' && !tierPermitsFirst && hasFirstVoucher);
         const btn = document.createElement('button');
         btn.className = 'btn btn-primary btn-sm';
         btn.textContent = useVoucher ? 'Book with Voucher' : 'Book';
@@ -461,16 +479,23 @@ async function bookFlight(fn, cls, v) {
 
         // Optimistic UI update for vouchers (DB sync handled by backend bot)
         if (v) {
-            currentUserState.vouchers[cls.toLowerCase()] = Math.max(0, currentUserState.vouchers[cls.toLowerCase()] - 1);
+            const key = cls.toLowerCase();
+            currentUserState.vouchers[key] = Math.max(0, currentUserState.vouchers[key] - 1);
+            // Also update display counts if they were active
+            if (key === 'business') currentUserState.vouchers.displayBusiness = Math.max(0, currentUserState.vouchers.displayBusiness - 1);
+            if (key === 'first') currentUserState.vouchers.displayFirst = Math.max(0, currentUserState.vouchers.displayFirst - 1);
         }
 
         const card = document.getElementById(`flight-${fn}`);
         if (card) {
-            card.innerHTML = '';
+            // Success Alert logic: Complete overlay
             const success = document.createElement('div'); success.className = 'success-card';
             const h2 = document.createElement('h2'); h2.textContent = 'Booking Successful!'; success.appendChild(h2);
-            const p = document.createElement('p'); p.textContent = `A confirmation has been sent to your Discord DMs. Your ${cls} seat is locked in.`;
-            success.appendChild(p); card.appendChild(success);
+            const p = document.createElement('p'); p.textContent = 'Your booking is being processed. A confirmation will be sent to your Discord DMs as soon as it is finalized.';
+            success.appendChild(p);
+
+            card.style.position = 'relative';
+            card.appendChild(success);
         }
 
         await fetchUserBookings();
@@ -512,10 +537,34 @@ async function cancelBooking(id) {
             try {
                 const { error } = await dbClient.from('bookings').delete().eq('id', id);
                 if (!error) {
-                    await fetchUserBookings();
+                    // Update local state by removing the booking
+                    currentUserState.bookings = currentUserState.bookings.filter(b => b.id !== id);
+
+                    // Update UI immediately (dropdown/dashboard)
+                    const dropdown = document.getElementById('user-dropdown');
+                    if (dropdown) {
+                        const items = dropdown.querySelectorAll('.booking-item-mini');
+                        items.forEach(item => {
+                            // Find the cancel button that matches the id and remove the item
+                            const btn = item.querySelector('.cancel-link');
+                            if (btn && btn.getAttribute('data-id') === id.toString()) {
+                                item.remove();
+                            }
+                        });
+
+                        // Check if list is empty
+                        const list = dropdown.querySelector('.bookings-list-mini');
+                        if (list && list.querySelectorAll('.booking-item-mini').length === 0) {
+                            list.innerHTML = '<p class="empty-state">You have no active bookings</p>';
+                        }
+                    }
+
+                    // Also trigger auth UI update to refresh stats if needed
                     updateAuthUI();
+                } else {
+                    console.error("Supabase delete error:", error);
                 }
-            } catch (e) { console.error("Cancel failed."); }
+            } catch (e) { console.error("Cancel failed:", e.message); }
         }
     );
 }
@@ -562,20 +611,25 @@ function renderProfileDropdown(parent) {
     const small = document.createElement('small'); small.textContent = currentUserState.tier; dHeader.appendChild(small);
     dropdown.appendChild(dHeader);
 
-    // Voucher Display Logic
-    const { tier, vouchers } = currentUserState;
-    if (tier === 'Bronze Aviator' || tier === 'Silver Commander') {
+    // Voucher Display Logic: Show if user has displayable vouchers > 0
+    const { vouchers } = currentUserState;
+    if (vouchers.displayBusiness > 0 || vouchers.displayFirst > 0) {
         const divV = document.createElement('div'); divV.className = 'dropdown-divider'; dropdown.appendChild(divV);
         const dVouchers = document.createElement('div'); dVouchers.className = 'dropdown-info';
 
-        if (tier === 'Bronze Aviator') {
+        if (vouchers.displayBusiness > 0) {
+            const row = document.createElement('div'); row.style.display = 'flex'; row.style.justifyContent = 'space-between'; row.style.alignItems = 'center'; row.style.marginBottom = '5px';
             const vLabel = document.createElement('small'); vLabel.textContent = 'Business Vouchers';
             const vVal = document.createElement('div'); vVal.className = 'user-tier-badge'; vVal.textContent = vouchers.business;
-            dVouchers.appendChild(vLabel); dVouchers.appendChild(vVal);
-        } else if (tier === 'Silver Commander') {
+            row.appendChild(vLabel); row.appendChild(vVal);
+            dVouchers.appendChild(row);
+        }
+        if (vouchers.displayFirst > 0) {
+            const row = document.createElement('div'); row.style.display = 'flex'; row.style.justifyContent = 'space-between'; row.style.alignItems = 'center';
             const vLabel = document.createElement('small'); vLabel.textContent = 'First Class Vouchers';
             const vVal = document.createElement('div'); vVal.className = 'user-tier-badge'; vVal.textContent = vouchers.first;
-            dVouchers.appendChild(vLabel); dVouchers.appendChild(vVal);
+            row.appendChild(vLabel); row.appendChild(vVal);
+            dVouchers.appendChild(row);
         }
         dropdown.appendChild(dVouchers);
     }
@@ -596,7 +650,10 @@ function renderProfileDropdown(parent) {
             const clsS = document.createElement('small'); clsS.textContent = b.booking_class; txt.appendChild(clsS);
             item.appendChild(txt);
 
-            const btn = document.createElement('button'); btn.className = 'cancel-link'; btn.textContent = 'Cancel';
+            const btn = document.createElement('button');
+            btn.className = 'cancel-link';
+            btn.textContent = 'Cancel';
+            btn.setAttribute('data-id', b.id);
             btn.onclick = (e) => { e.stopPropagation(); cancelBooking(b.id); };
             item.appendChild(btn);
             list.appendChild(item);

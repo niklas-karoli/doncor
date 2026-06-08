@@ -561,9 +561,17 @@ function renderBlock(f, cls) {
 
 async function bookFlight(fn, cls, v) {
     try {
+        // Normalize class strings to match internal keys ('business' or 'first')
+        const normalizedCls = cls.toLowerCase();
+        const classKey = normalizedCls.includes('business') ? 'business' : normalizedCls.includes('first') ? 'first' : 'economy';
+
         // Pre-validation: ensure voucher exists locally if required
         if (v) {
-            const currentCount = currentUserState.vouchers[cls.toLowerCase()] || 0;
+            if (classKey === 'economy') {
+                alert("Economy class bookings do not accept vouchers.");
+                return;
+            }
+            const currentCount = currentUserState.vouchers[classKey] || 0;
             if (currentCount <= 0) {
                 alert(`You do not have any ${cls} vouchers remaining.`);
                 return;
@@ -575,8 +583,12 @@ async function bookFlight(fn, cls, v) {
         if (loadingOverlay) loadingOverlay.style.display = 'flex';
 
         const { error } = await dbClient.from('bookings').insert([{
-            flight_number: fn, user_id: currentUserState.id, discord_id: currentUserState.discord_id,
-            username: currentUserState.username, booking_class: cls, used_voucher: v
+            flight_number: fn, 
+            user_id: currentUserState.id, 
+            discord_id: currentUserState.discord_id,
+            username: currentUserState.username, 
+            booking_class: cls, 
+            used_voucher: v
         }]);
 
         if (error) {
@@ -587,19 +599,20 @@ async function bookFlight(fn, cls, v) {
         // --- Optimistic UI Updates & DB Sync ---
 
         // 1. Update Voucher State, DB & Persistence
-        if (v) {
-            const key = cls.toLowerCase();
-            const col = key === 'business' ? 'business_vouchers' : 'first_vouchers';
-            currentUserState.vouchers[key] = Math.max(0, currentUserState.vouchers[key] - 1);
+        if (v && classKey !== 'economy') {
+            const col = classKey === 'business' ? 'business_vouchers' : 'first_vouchers';
+            
+            // Decrement local state safely
+            currentUserState.vouchers[classKey] = Math.max(0, (currentUserState.vouchers[classKey] || 0) - 1);
 
-            // Execute database deduction
+            // Execute database deduction using the correct column name
             const { error: syncError } = await dbClient.from('profiles')
-                .update({ [col]: currentUserState.vouchers[key] })
+                .update({ [col]: currentUserState.vouchers[classKey] })
                 .eq('id', currentUserState.id);
 
-            if (syncError) console.error("Voucher sync failed:", syncError.message);
+            if (syncError) console.error("Voucher database sync failed:", syncError.message);
 
-            // Update display counts based on tier logic
+            // Update display counts based on tier restriction logic
             const { tier } = currentUserState;
             currentUserState.vouchers.displayBusiness = (tier !== "Silver Commander" && tier !== "Gold Captain") ? currentUserState.vouchers.business : 0;
             currentUserState.vouchers.displayFirst = (tier !== "Gold Captain") ? currentUserState.vouchers.first : 0;
@@ -625,7 +638,7 @@ async function bookFlight(fn, cls, v) {
         });
 
         // 3. Immediate DOM Updates
-        updateAuthUI(); // Updates the top bar
+        updateAuthUI(); // Updates the top nav bar mileage/status metrics
 
         // Re-render dropdown if it's currently open
         const dropdown = document.getElementById('user-dropdown');
@@ -649,8 +662,8 @@ async function bookFlight(fn, cls, v) {
         }, 3500);
 
     } catch (e) {
-        console.error("Booking error:", e.message);
-        alert("Booking error.");
+        console.error("Booking error details:", e.message);
+        alert("An error occurred while processing your booking.");
     }
 }
 

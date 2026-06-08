@@ -487,7 +487,7 @@ function renderFlightResults(flights, container) {
         main.appendChild(details);
 
         const legal = document.createElement('div'); legal.className = 'legal-disclaimer-small';
-        legal.textContent = 'Doncor Wings PTFS is a fictional roleplay community for Roblox. This is a virtual flight; no real-world tickets or monetary transactions are involved.';
+        legal.textContent = 'Doncor Airline PTFS and the DONCOR WINGS mileage program are part of a fictional roleplay community for Roblox. This is a purely virtual flight operation; no real-world tickets, monetary transactions, or physical travel are involved.';
         main.appendChild(legal);
         card.appendChild(main);
 

@@ -7,6 +7,10 @@ const supabaseUrl = 'https://cqybjgwbehmjpeecqkbq.supabase.co';
 const supabaseKey = 'sb_publishable_8jrQCtGf-KaQR1s7avn4ew_RJcuBSfz';
 let dbClient = null;
 
+const PARTNER_AIRLINES = {
+    "Scoot PTFS": "https://discord.gg/BkqQJuUN4f"
+};
+
 let currentUserState = {
     id: null,
     discord_id: '',
@@ -408,8 +412,15 @@ function renderFlightResults(flights, container) {
         };
 
         details.appendChild(createDetail('Aircraft', highlightAircraft(f.aircraft_type)));
-        const carrierVal = f.is_codeshare ? `Operated by ${f.codeshare_airline}` : 'Doncor Wings';
-        details.appendChild(createDetail('Carrier', carrierVal, f.is_codeshare, f.codeshare_discord_link));
+
+        let carrierVal = 'Doncor Wings';
+        let carrierLink = null;
+        if (f.is_codeshare) {
+            carrierVal = `Operated by ${f.codeshare_airline}`;
+            carrierLink = PARTNER_AIRLINES[f.codeshare_airline] || f.codeshare_discord_link;
+        }
+
+        details.appendChild(createDetail('Carrier', carrierVal, !!carrierLink, carrierLink));
         main.appendChild(details);
 
         const legal = document.createElement('div'); legal.className = 'legal-disclaimer-small';
@@ -417,13 +428,24 @@ function renderFlightResults(flights, container) {
         main.appendChild(legal);
         card.appendChild(main);
 
-        const opts = document.createElement('div');
-        opts.className = 'booking-options';
-        const classes = f.available_classes || ['Economy'];
-        ['Economy', 'Business', 'First'].forEach(cls => {
-            if (classes.includes(cls)) opts.appendChild(renderBlock(f, cls));
-        });
-        card.appendChild(opts);
+        const hasAlreadyBooked = currentUserState.bookings.some(b => b.flight_number === f.flight_number);
+
+        if (hasAlreadyBooked) {
+            const alertBox = document.createElement('div');
+            alertBox.className = 'already-booked-alert';
+            const alertText = document.createElement('p');
+            alertText.textContent = "You have already booked this flight. Multiple bookings for the same flight are not permitted on this account.";
+            alertBox.appendChild(alertText);
+            card.appendChild(alertBox);
+        } else {
+            const opts = document.createElement('div');
+            opts.className = 'booking-options';
+            const classes = f.available_classes || ['Economy'];
+            ['Economy', 'Business', 'First'].forEach(cls => {
+                if (classes.includes(cls)) opts.appendChild(renderBlock(f, cls));
+            });
+            card.appendChild(opts);
+        }
         container.appendChild(card);
     });
 }
@@ -485,36 +507,45 @@ async function bookFlight(fn, cls, v) {
             }
         }
 
+        // Show loading overlay
+        const loadingOverlay = document.getElementById('loading-overlay');
+        if (loadingOverlay) loadingOverlay.style.display = 'flex';
+
         const { error } = await dbClient.from('bookings').insert([{
             flight_number: fn, user_id: currentUserState.id, discord_id: currentUserState.discord_id,
             username: currentUserState.username, booking_class: cls, used_voucher: v
         }]);
-        if (error) throw error;
 
-        // Optimistic UI update for vouchers (DB sync handled by backend bot)
+        if (error) {
+            if (loadingOverlay) loadingOverlay.style.display = 'none';
+            throw error;
+        }
+
+        // Optimistic UI update for vouchers
         if (v) {
             const key = cls.toLowerCase();
             currentUserState.vouchers[key] = Math.max(0, currentUserState.vouchers[key] - 1);
-            // Also update display counts if they were active
+            // Also update display counts
             if (key === 'business') currentUserState.vouchers.displayBusiness = Math.max(0, currentUserState.vouchers.displayBusiness - 1);
             if (key === 'first') currentUserState.vouchers.displayFirst = Math.max(0, currentUserState.vouchers.displayFirst - 1);
+
+            // Re-render profile dropdown if open to reflect new voucher count
+            const dropdown = document.getElementById('user-dropdown');
+            if (dropdown) {
+                const userProfile = document.getElementById('user-profile');
+                if (userProfile) {
+                    dropdown.remove();
+                    renderProfileDropdown(userProfile);
+                }
+            }
         }
 
-        const card = document.getElementById(`flight-${fn}`);
-        if (card) {
-            // Success Alert logic: Complete overlay
-            const success = document.createElement('div'); success.className = 'success-card';
-            const h2 = document.createElement('h2'); h2.textContent = 'Booking Successful!'; success.appendChild(h2);
-            const p = document.createElement('p'); p.textContent = 'Your booking is being processed. A confirmation will be sent to your Discord DMs as soon as it is finalized.';
-            success.appendChild(p);
-
-            card.style.position = 'relative';
-            card.appendChild(success);
-        }
-
-        await fetchUserBookings();
-        updateAuthUI();
-    } catch (e) { alert("Booking error."); }
+        // Redirect to success page
+        window.location.replace('booking-success.html');
+    } catch (e) {
+        console.error("Booking error:", e.message);
+        alert("Booking error.");
+    }
 }
 
 function showCustomModal(title, message, onConfirm) {

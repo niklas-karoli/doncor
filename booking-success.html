@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Booking Successful | Doncor Wings PTFS</title>
+    <link rel="stylesheet" href="assets/css/style.css">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🦅</text></svg>">
+    <style>
+        .success-page {
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            position: relative;
+            overflow: hidden;
+            padding-top: 80px; /* Space for fixed header */
+        }
+
+        .success-content {
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            padding: 40px 20px;
+            z-index: 2;
+        }
+
+        .success-icon-large {
+            width: 100px;
+            height: 100px;
+            background: rgba(255, 200, 0, 0.1);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 30px;
+            border: 2px solid var(--accent-yellow);
+            color: var(--accent-yellow);
+        }
+
+        .success-icon-large svg {
+            width: 50px;
+            height: 50px;
+        }
+
+        .success-title {
+            font-size: 2.5rem;
+            font-family: 'Montserrat', sans-serif;
+            font-weight: 700;
+            margin-bottom: 20px;
+            color: var(--white);
+        }
+
+        .success-message {
+            font-size: 1.2rem;
+            color: var(--text-muted);
+            max-width: 600px;
+            margin-bottom: 40px;
+            line-height: 1.6;
+        }
+
+        .countdown-container {
+            margin-bottom: 40px;
+            padding: 20px 40px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .countdown-number {
+            font-size: 3rem;
+            font-weight: 700;
+            color: var(--accent-yellow);
+            font-family: 'Montserrat', sans-serif;
+            display: block;
+            margin-bottom: 5px;
+        }
+
+        .countdown-text {
+            font-size: 0.9rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        /* Animation Background */
+        .animation-bg {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+            pointer-events: none;
+        }
+
+        .plane-path {
+            position: absolute;
+            opacity: 0.1;
+            animation: planeFly linear infinite;
+        }
+
+        @keyframes planeFly {
+            from { transform: translate(-100px, 0) rotate(0deg); }
+            to { transform: translate(calc(100vw + 100px), -100px) rotate(-10deg); }
+        }
+
+        .path-1 { top: 20%; left: -100px; animation-duration: 25s; }
+        .path-2 { top: 50%; left: -150px; animation-duration: 35s; animation-delay: 5s; }
+        .path-3 { top: 80%; left: -120px; animation-duration: 30s; animation-delay: 12s; }
+
+        .plane-svg {
+            fill: var(--white);
+            width: 40px;
+            height: 40px;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="success-page">
+        <!-- Background Animation -->
+        <div class="animation-bg">
+            <div class="plane-path path-1">
+                <svg class="plane-svg" viewBox="0 0 24 24">
+                    <path d="M21,16L22,13L15,8.5V3.5A1.5,1.5 0 0,0 13.5,2A1.5,1.5 0 0,0 12,3.5V8.5L5,13L6,16L12,14L18,16L21,16M12,16L5,18V20L12,18L19,20V18L12,16Z" />
+                </svg>
+            </div>
+            <div class="plane-path path-2">
+                <svg class="plane-svg" viewBox="0 0 24 24">
+                    <path d="M21,16L22,13L15,8.5V3.5A1.5,1.5 0 0,0 13.5,2A1.5,1.5 0 0,0 12,3.5V8.5L5,13L6,16L12,14L18,16L21,16M12,16L5,18V20L12,18L19,20V18L12,16Z" />
+                </svg>
+            </div>
+            <div class="plane-path path-3">
+                <svg class="plane-svg" viewBox="0 0 24 24">
+                    <path d="M21,16L22,13L15,8.5V3.5A1.5,1.5 0 0,0 13.5,2A1.5,1.5 0 0,0 12,3.5V8.5L5,13L6,16L12,14L18,16L21,16M12,16L5,18V20L12,18L19,20V18L12,16Z" />
+                </svg>
+            </div>
+        </div>
+
+        <!-- Simplified Header -->
+        <header>
+            <div class="container">
+                <div class="logo">
+                    <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M10 50 L40 20 L90 20 L50 50 L90 80 L40 80 Z" fill="#FFC800"/>
+                        <path d="M20 50 L45 35 L75 35 L50 50 L75 65 L45 65 Z" fill="#ffffff" opacity="0.8"/>
+                    </svg>
+                    <div class="logo-text">
+                        <span class="main-line">DONCOR WINGS</span>
+                        <span class="sub-line">by DONCOR AIRLINE PTFS</span>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="success-content">
+            <div class="success-icon-large">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="20 6 9 17 4 12"></polyline>
+                </svg>
+            </div>
+
+            <h1 class="success-title">Booking Successful!</h1>
+            <p class="success-message">
+                A confirmation has been sent to your Discord DMs. Your seat is locked in.
+            </p>
+
+            <div class="countdown-container">
+                <span id="countdown" class="countdown-number">20</span>
+                <span class="countdown-text">Seconds Remaining</span>
+            </div>
+
+            <p style="margin-bottom: 20px; color: var(--text-muted); font-size: 0.9rem;">
+                You will be automatically redirected to the homepage in <span id="hint-countdown" class="highlight">20</span> seconds, or you can click the button below.
+            </p>
+
+            <a href="index.html" class="btn btn-primary">Back to Homepage</a>
+        </main>
+
+        <!-- Footer -->
+        <footer>
+            <div class="container">
+                <div class="hazard-line" style="max-width: 200px; margin: 0 auto 30px;"></div>
+                <p class="legal-text">
+                    Doncor Wings PTFS is a fictional, non-commercial roleplay community for Roblox/PTFS. This website is purely for entertainment purposes. We have no official affiliation, connection, or endorsement with or by Condor Flugdienst GmbH, Airbus, Boeing, or any real-world airline or manufacturer. All virtual miles, points, and ranks on this platform are completely fictional and hold no real-world monetary value.
+                </p>
+            </div>
+        </footer>
+    </div>
+
+    <script>
+        let seconds = 20;
+        const countdownEl = document.getElementById('countdown');
+        const hintCountdownEl = document.getElementById('hint-countdown');
+
+        const timer = setInterval(() => {
+            seconds--;
+            countdownEl.textContent = seconds;
+            hintCountdownEl.textContent = seconds;
+
+            if (seconds <= 0) {
+                clearInterval(timer);
+                window.location.replace('index.html');
+            }
+        }, 1000);
+    </script>
+</body>
+</html>

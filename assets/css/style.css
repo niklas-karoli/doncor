@@ -843,31 +843,96 @@ nav ul li a:hover {
     font-size: 0.8rem;
 }
 
-/* Success Card */
-.success-card {
-    position: absolute;
+/* Loading Overlay */
+.loading-overlay {
+    position: fixed;
     top: 0;
     left: 0;
     width: 100%;
     height: 100%;
-    background: var(--bg-card);
-    border: 2px solid #10b981;
-    border-radius: 12px;
-    padding: 20px;
-    display: flex;
+    background: rgba(11, 22, 37, 0.95);
+    backdrop-filter: blur(10px);
+    display: none; /* Controlled by JS */
     flex-direction: column;
-    justify-content: center;
     align-items: center;
+    justify-content: center;
+    z-index: 3000;
     text-align: center;
-    animation: fadeIn 0.3s ease-out;
-    z-index: 10;
-    box-sizing: border-box;
 }
 
-.success-icon {
-    font-size: 4rem;
-    color: #10b981;
-    margin-bottom: 20px;
+.loading-spinner-container {
+    position: relative;
+    width: 100px;
+    height: 100px;
+    margin-bottom: 30px;
+    animation: spin 2s linear infinite;
+}
+
+.loading-spinner {
+    width: 100%;
+    height: 100%;
+    border: 3px solid rgba(255, 200, 0, 0.1);
+    border-top: 3px solid var(--accent-yellow);
+    border-radius: 50%;
+}
+
+.loading-plane {
+    position: absolute;
+    top: -11px;
+    left: 50%;
+    transform: translateX(-50%) rotate(90deg);
+    width: 22px;
+    height: 22px;
+    fill: var(--accent-yellow);
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+.loading-text {
+    font-family: 'Montserrat', sans-serif;
+    font-size: 1.2rem;
+    font-weight: 600;
+    color: var(--white);
+}
+
+.loading-subtext {
+    font-size: 0.9rem;
+    color: var(--text-muted);
+    margin-top: 10px;
+}
+
+/* Already Booked Alert */
+.already-booked-alert {
+    background: rgba(0, 0, 0, 0.3);
+    border-left: 4px solid var(--accent-yellow);
+    padding: 20px;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    margin: 10px 0;
+    position: relative;
+    overflow: hidden;
+}
+
+.already-booked-alert::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 4px;
+    height: 100%;
+    background: repeating-linear-gradient(0deg, var(--accent-yellow), var(--accent-yellow) 10px, var(--bg-dark) 10px, var(--bg-dark) 20px);
+}
+
+.already-booked-alert p {
+    font-size: 0.85rem;
+    color: var(--white);
+    margin: 0;
+    font-weight: 500;
 }
 
 @keyframes fadeIn {

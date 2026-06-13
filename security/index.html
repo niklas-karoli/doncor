@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Security Architecture - DONCOR WINGS</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-[#fafbfc] text-[#2d3748] antialiased">
+
+    <header class="bg-[#111625] border-b-4 border-[#FFC800] py-10 px-6 text-center">
+        <h1 class="text-3xl md:text-4xl font-extrabold text-white tracking-wide">DONCOR <span class="text-[#FFC800]">WINGS</span></h1>
+        <p class="text-[#FFC800] text-xs uppercase tracking-widest font-bold mt-2">Cybersecurity & Infrastructure Architecture</p>
+    </header>
+
+    <main class="max-w-4xl mx-auto px-4 py-12">
+        <div class="bg-white rounded-lg shadow-sm border border-[#e2e8f0] p-6 md:p-10">
+            <h2 class="text-2xl font-bold text-[#111625] mb-6 border-l-4 border-[#FFC800] pl-3">Official Security & Infrastructure Statement</h2>
+            
+            <p class="mb-6 text-justify leading-relaxed">
+                The DONCOR WINGS ecosystem is engineered from the ground up as a fully comprehensive, professional digital product. To ensure absolute data protection and platform resilience, our system architecture was developed in collaboration with dedicated cybersecurity specialists and subjected to rigorous Penetration Testing (Pentesting).
+            </p>
+
+            <div class="bg-[#f7fafc] border border-[#e2e8f0] border-l-4 border-[#111625] rounded p-6 my-8 flex flex-col md:flex-row justify-between items-start md:items-center">
+                <div class="mb-4 md:mb-0">
+                    <h3 class="text-lg font-bold text-[#111625]">Download Official Statement (PDF)</h3>
+                </div>
+                <a href="/assets/doncor_wings_security_statement.pdf" download class="inline-block bg-[#111625] text-white font-bold px-6 py-3 rounded border border-[#111625] hover:bg-white hover:text-[#111625] transition duration-200">
+                    📥 Download PDF Statement
+                </a>
+            </div>
+
+            <div class="space-y-8 mt-10">
+                <div>
+                    <h3 class="text-xl font-bold text-[#111625] mb-2">1. Decentralized OAuth2 Authentication</h3>
+                    <p class="leading-relaxed text-justify">
+                        Our mileage dashboard and Discord Bot utilize industry-standard Discord OAuth2 technology facilitated by the Supabase framework. The ecosystem <strong>never collects, processes, or stores raw user credentials</strong> (usernames or account passwords). Authentication is delegated entirely to Discord's official secure servers, ensuring your account remains safe.
+                    </p>
+                </div>
+
+                <div>
+                    <h3 class="text-xl font-bold text-[#111625] mb-2">2. Database Isolation & Row Level Security (RLS)</h3>
+                    <p class="leading-relaxed text-justify">
+                        All application data layers are isolated via PostgreSQL Row Level Security. Public API keys are rigidly sandboxed, preventing unauthorized write mutations. Users possess cryptographic bounds to mutate solely their personal data entries, ensuring cross-profile injections are structurally blocked.
+                    </p>
+                </div>
+
+                <div>
+                    <h3 class="text-xl font-bold text-[#111625] mb-2">3. Proactive Penetration Testing</h3>
+                    <p class="leading-relaxed text-justify">
+                        Prior to deployment, cybersecurity experts simulated real-world cyberattacks (Pentests) against our infrastructure to safely discover and resolve potential code bugs. Furthermore, our frontend employs a Zero-Trust client rendering methodology, automatically sanitizing structural dynamic data into safe text nodes to prevent XSS injection risks.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </main>
+
+</body>
+</html>

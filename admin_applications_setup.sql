@@ -48,7 +48,6 @@ CREATE POLICY "Public read application settings" ON public.application_settings
     FOR SELECT USING (true);
 
 -- Restrict direct modification on admin tables for anon role (updates executed via RPCs)
--- (No public INSERT/UPDATE/DELETE policies on admin_sessions, application_questions, application_settings)
 
 
 -- 3. RPC Functions for Token Validation & Admin Operations
@@ -76,6 +75,8 @@ BEGIN
     END IF;
 
     IF v_session.expires_at < now() THEN
+        -- Cleanup expired session
+        DELETE FROM public.admin_sessions WHERE id = v_session.id;
         RETURN jsonb_build_object('success', false, 'error', 'Token has expired');
     END IF;
 
@@ -107,6 +108,18 @@ BEGIN
     ) INTO v_exists;
 
     RETURN v_exists;
+END;
+$$;
+
+-- Admin RPC: Destroy Session
+CREATE OR REPLACE FUNCTION public.admin_destroy_session(p_token TEXT)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+BEGIN
+    DELETE FROM public.admin_sessions WHERE token = p_token;
+    RETURN jsonb_build_object('success', true);
 END;
 $$;
 
@@ -161,6 +174,25 @@ BEGIN
     END IF;
 
     DELETE FROM public.application_questions WHERE id = p_id;
+    RETURN jsonb_build_object('success', true);
+END;
+$$;
+
+-- Admin RPC: Delete All Questions for a Position
+CREATE OR REPLACE FUNCTION public.admin_delete_position(
+    p_token TEXT,
+    p_position TEXT
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+BEGIN
+    IF NOT public.is_valid_admin_session(p_token) THEN
+        RETURN jsonb_build_object('success', false, 'error', 'Unauthorized admin session');
+    END IF;
+
+    DELETE FROM public.application_questions WHERE position = p_position;
     RETURN jsonb_build_object('success', true);
 END;
 $$;

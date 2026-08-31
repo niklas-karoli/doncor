@@ -24,6 +24,12 @@
             width: 100%;
         }
 
+        .header-meta {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
         .admin-badge {
             background: rgba(255, 200, 0, 0.15);
             color: var(--accent-yellow);
@@ -34,6 +40,26 @@
             font-weight: 700;
             letter-spacing: 1px;
             text-transform: uppercase;
+        }
+
+        .session-timer-badge {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            color: var(--white);
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .session-timer-badge span.timer-val {
+            color: var(--accent-yellow);
+            font-weight: 700;
+            font-family: monospace;
+            font-size: 0.9rem;
         }
 
         .admin-container {
@@ -203,11 +229,11 @@
             border: 1px solid rgba(255, 255, 255, 0.08);
             border-radius: 10px;
             padding: 24px;
-            cursor: pointer;
             transition: all 0.2s ease;
             display: flex;
             justify-content: space-between;
             align-items: center;
+            cursor: pointer;
         }
 
         .position-card:hover {
@@ -495,7 +521,10 @@
                     </div>
                 </a>
 
-                <div style="display: flex; align-items: center; gap: 15px;">
+                <div class="header-meta">
+                    <div id="session-timer-badge" class="session-timer-badge" style="display: none;">
+                        Session Expires in <span id="session-timer-val" class="timer-val">--:--</span>
+                    </div>
                     <span class="admin-badge">Admin Dashboard</span>
                     <button id="sign-out-btn" class="btn btn-outline btn-sm" style="display: none;">End Session</button>
                 </div>
@@ -514,7 +543,7 @@
             <!-- Error / Invalid Token Screen -->
             <div id="auth-error-state" class="auth-error-card" style="display: none;">
                 <h2>Access Denied</h2>
-                <p id="auth-error-message">Invalid or Expired Admin Link. Please request a new authentication link from your administrator.</p>
+                <p id="auth-error-message">Invalid or Expired Admin Link. Please generate a new authentication link via Discord using /admin_dashboard.</p>
                 <a href="https://doncorwings-ptfs.com/admin/" class="btn btn-primary btn-sm">Return to Admin Portal</a>
             </div>
 
@@ -757,16 +786,20 @@
     <script>
         // Applications Admin Dashboard Controller
         const ADMIN_SESSION_KEY = 'doncor_admin_token';
+        const ADMIN_EXPIRY_KEY = 'doncor_admin_expires_at';
         const DEFAULT_POSITIONS = [
-            { id: 'Pilot', name: 'Pilot', desc: 'Flight operations and virtual pilot applications.' },
-            { id: 'Ground Crew', name: 'Ground Crew', desc: 'Airport operations and apron service team.' },
-            { id: 'Cabin Crew', name: 'Cabin Crew', desc: 'In-flight service and passenger experience.' },
-            { id: 'Human Resources', name: 'Human Resources', desc: 'Recruitment, staff management, and reviews.' },
-            { id: 'Flight Manager', name: 'Flight Manager', desc: 'Flight scheduling and ATC coordination.' },
-            { id: 'Airline Manager', name: 'Airline Manager', desc: 'Executive leadership and guild management.' }
+            { name: 'Pilot', display_order: 1, description: 'Flight operations and virtual pilot applications.', is_enabled: true, auto_role_enabled: false, auto_role_id: '' },
+            { name: 'Ground Crew', display_order: 2, description: 'Airport operations and apron service team.', is_enabled: true, auto_role_enabled: false, auto_role_id: '' },
+            { name: 'Cabin Crew', display_order: 3, description: 'In-flight service and passenger experience.', is_enabled: true, auto_role_enabled: false, auto_role_id: '' },
+            { name: 'Human Resources', display_order: 4, description: 'Recruitment, staff management, and reviews.', is_enabled: true, auto_role_enabled: false, auto_role_id: '' },
+            { name: 'Flight Manager', display_order: 5, description: 'Flight scheduling and ATC coordination.', is_enabled: true, auto_role_enabled: false, auto_role_id: '' },
+            { name: 'Airline Manager', display_order: 6, description: 'Executive leadership and guild management.', is_enabled: true, auto_role_enabled: false, auto_role_id: '' }
         ];
 
         let adminToken = null;
+        let sessionExpiresAt = null;
+        let sessionTimerInterval = null;
+        let positionsData = [];
         let questionsData = [];
         let settingsData = {};
         let currentStep = 1;
@@ -813,7 +846,40 @@
             cancelBtn.onclick = close;
         }
 
-        // --- Authentication & Session Cleanup ---
+        // --- Authentication & Session Countdown Timer ---
+        function startSessionTimer(expiryTime) {
+            sessionExpiresAt = expiryTime;
+            sessionStorage.setItem(ADMIN_EXPIRY_KEY, expiryTime);
+
+            const badge = document.getElementById('session-timer-badge');
+            const timerVal = document.getElementById('session-timer-val');
+            if (badge) badge.style.display = 'flex';
+
+            if (sessionTimerInterval) clearInterval(sessionTimerInterval);
+
+            const updateTimer = () => {
+                const now = Date.now();
+                const diffMs = sessionExpiresAt - now;
+
+                if (diffMs <= 0) {
+                    clearInterval(sessionTimerInterval);
+                    if (timerVal) timerVal.textContent = '00:00';
+                    destroySessionAndRedirect("Session Expired. Please generate a new authentication link via Discord using /admin_dashboard.");
+                    return;
+                }
+
+                const totalSec = Math.floor(diffMs / 1000);
+                const mins = Math.floor(totalSec / 60);
+                const secs = totalSec % 60;
+                if (timerVal) {
+                    timerVal.textContent = `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+                }
+            };
+
+            updateTimer();
+            sessionTimerInterval = setInterval(updateTimer, 1000);
+        }
+
         async function initAdminAuth() {
             const urlParams = new URLSearchParams(window.location.search);
             const tokenFromUrl = urlParams.get('token');
@@ -825,7 +891,7 @@
                     });
 
                     if (error || !data || !data.success) {
-                        const errMsg = data?.error || error?.message || "Invalid or Expired Admin Link";
+                        const errMsg = data?.error || error?.message || "Invalid or Expired Admin Link. Please generate a new link via Discord using /admin_dashboard.";
                         await destroySessionAndRedirect(errMsg);
                         return;
                     }
@@ -833,38 +899,54 @@
                     adminToken = tokenFromUrl;
                     sessionStorage.setItem(ADMIN_SESSION_KEY, adminToken);
 
+                    // Expiry calculation
+                    const expiresAtMs = data.expires_at ? new Date(data.expires_at).getTime() : Date.now() + (15 * 60 * 1000);
+                    startSessionTimer(expiresAtMs);
+
                     // Clean URL
                     window.history.replaceState({}, document.title, window.location.pathname);
                     loadDashboard();
                 } catch (e) {
-                    await destroySessionAndRedirect("Authentication request failed.");
+                    await destroySessionAndRedirect("Authentication request failed. Please generate a new link via Discord using /admin_dashboard.");
                 }
             } else {
                 const storedToken = sessionStorage.getItem(ADMIN_SESSION_KEY);
+                const storedExpiry = sessionStorage.getItem(ADMIN_EXPIRY_KEY);
+
                 if (storedToken) {
                     adminToken = storedToken;
+                    const expiryMs = storedExpiry ? parseInt(storedExpiry) : Date.now() + (15 * 60 * 1000);
+
+                    if (Date.now() >= expiryMs) {
+                        await destroySessionAndRedirect("Session Expired. Please generate a new authentication link via Discord using /admin_dashboard.");
+                        return;
+                    }
+
                     try {
                         const { data, error } = await dbClient.rpc('is_valid_admin_session', {
                             p_token: adminToken
                         });
 
                         if (!error && data === true) {
+                            startSessionTimer(expiryMs);
                             loadDashboard();
                             return;
                         }
                     } catch (e) {}
                 }
-                await destroySessionAndRedirect("Invalid or Expired Admin Link");
+                await destroySessionAndRedirect("Invalid or Expired Admin Link. Please generate a new authentication link via Discord using /admin_dashboard.");
             }
         }
 
         async function destroySessionAndRedirect(msg) {
+            if (sessionTimerInterval) clearInterval(sessionTimerInterval);
             if (adminToken) {
                 try {
                     await dbClient.rpc('admin_destroy_session', { p_token: adminToken });
                 } catch (e) {}
             }
             sessionStorage.removeItem(ADMIN_SESSION_KEY);
+            sessionStorage.removeItem(ADMIN_EXPIRY_KEY);
             adminToken = null;
 
             showAuthError(msg);
@@ -874,6 +956,7 @@
             document.getElementById('loading-state').style.display = 'none';
             document.getElementById('dashboard-workspace').style.display = 'none';
             document.getElementById('sign-out-btn').style.display = 'none';
+            document.getElementById('session-timer-badge').style.display = 'none';
             const errorState = document.getElementById('auth-error-state');
             document.getElementById('auth-error-message').textContent = msg;
             errorState.style.display = 'block';
@@ -894,6 +977,7 @@
                 );
             };
 
+            await fetchPositions();
             await fetchQuestions();
             await fetchSettings();
 
@@ -968,6 +1052,23 @@
         }
 
         // --- Data Fetching ---
+        async function fetchPositions() {
+            try {
+                const { data, error } = await dbClient
+                    .from('application_positions')
+                    .select('*')
+                    .order('display_order', { ascending: true });
+
+                if (!error && data) {
+                    positionsData = data;
+                } else {
+                    positionsData = [...DEFAULT_POSITIONS];
+                }
+            } catch (err) {
+                positionsData = [...DEFAULT_POSITIONS];
+            }
+        }
+
         async function fetchQuestions() {
             try {
                 const { data, error } = await dbClient
@@ -998,6 +1099,30 @@
             }
         }
 
+        function getAllPositionsList() {
+            const list = [...positionsData];
+            // Include default positions if not present
+            DEFAULT_POSITIONS.forEach(dp => {
+                if (!list.some(p => p.name.toLowerCase() === dp.name.toLowerCase())) {
+                    list.push(dp);
+                }
+            });
+            // Include positions present in questions but not in list
+            questionsData.forEach(q => {
+                if (q.position && !list.some(p => p.name.toLowerCase() === q.position.toLowerCase())) {
+                    list.push({
+                        name: q.position,
+                        display_order: 999,
+                        description: 'Custom application position.',
+                        is_enabled: true,
+                        auto_role_enabled: false,
+                        auto_role_id: ''
+                    });
+                }
+            });
+            return list.sort((a, b) => (a.display_order || 999) - (b.display_order || 999));
+        }
+
         // --- Module 1: Recruitment Setup (Position Availability) ---
         function renderRecruitmentSetup() {
             const container = document.getElementById('recruitment-list-container');
@@ -1025,9 +1150,8 @@
 
                 item.appendChild(info);
 
-                // Switch
-                const key = `position_${pos.name}_enabled`;
-                const isEnabled = settingsData[key] !== 'false'; // Default open
+                // Switch for is_enabled
+                const isEnabled = pos.is_enabled !== false;
 
                 const label = document.createElement('label');
                 label.className = 'switch';
@@ -1036,15 +1160,29 @@
                 input.type = 'checkbox';
                 input.checked = isEnabled;
                 input.onchange = async () => {
-                    const newVal = input.checked ? 'true' : 'false';
+                    const newStatus = input.checked;
                     try {
-                        await dbClient.rpc('admin_save_setting', {
+                        const { data, error } = await dbClient.rpc('admin_toggle_position_enabled', {
                             p_token: adminToken,
-                            p_key: key,
-                            p_value: newVal
+                            p_name: pos.name,
+                            p_is_enabled: newStatus
                         });
-                        settingsData[key] = newVal;
-                        showToast(`${pos.name} applications ${input.checked ? 'OPENED' : 'CLOSED'}`);
+
+                        if (error) {
+                            // Fallback to full save if toggle RPC is pending deployment
+                            await dbClient.rpc('admin_save_position', {
+                                p_token: adminToken,
+                                p_name: pos.name,
+                                p_display_order: pos.display_order || 999,
+                                p_description: pos.description || '',
+                                p_is_enabled: newStatus,
+                                p_auto_role_enabled: pos.auto_role_enabled || false,
+                                p_auto_role_id: pos.auto_role_id || ''
+                            });
+                        }
+
+                        pos.is_enabled = newStatus;
+                        showToast(`${pos.name} applications ${newStatus ? 'OPENED' : 'CLOSED'}`);
                     } catch (e) {
                         showToast("Failed to update recruitment status", true);
                         input.checked = !input.checked;
@@ -1062,23 +1200,7 @@
             });
         }
 
-        function getAllPositionsList() {
-            const dbPositions = [...new Set(questionsData.map(q => q.position))];
-            const all = [...DEFAULT_POSITIONS];
-
-            dbPositions.forEach(dp => {
-                if (!all.some(p => p.name.toLowerCase() === dp.toLowerCase())) {
-                    all.push({
-                        id: dp,
-                        name: dp, // Exact casing
-                        desc: 'Custom application position.'
-                    });
-                }
-            });
-            return all;
-        }
-
-        // --- Step 2: Positions Grid ---
+        // --- Step 2: Positions Grid & Custom Modals ---
         function renderPositionsGrid() {
             const container = document.getElementById('positions-grid-container');
             container.innerHTML = '';
@@ -1094,11 +1216,11 @@
                 info.className = 'position-info';
 
                 const h4 = document.createElement('h4');
-                h4.textContent = pos.name; // Preserves exact casing
+                h4.textContent = pos.name; // Preserves exact casing, emoji-free
                 info.appendChild(h4);
 
                 const p = document.createElement('p');
-                p.textContent = `${pos.desc} (${qCount} question${qCount === 1 ? '' : 's'})`;
+                p.textContent = `${pos.description || 'Application position.'} (${qCount} question${qCount === 1 ? '' : 's'})`;
                 info.appendChild(p);
 
                 card.appendChild(info);
@@ -1130,6 +1252,30 @@
             document.getElementById('create-position-modal').style.display = 'none';
         }
 
+        async function createNewPosition(name, desc) {
+            try {
+                const nextOrder = (positionsData.length || 0) + 1;
+                const { data, error } = await dbClient.rpc('admin_save_position', {
+                    p_token: adminToken,
+                    p_name: name,
+                    p_display_order: nextOrder,
+                    p_description: desc || 'Custom staff application position.',
+                    p_is_enabled: true,
+                    p_auto_role_enabled: false,
+                    p_auto_role_id: ''
+                });
+
+                if (error) throw error;
+
+                showToast(`Position '${name}' created successfully!`);
+                await fetchPositions();
+                closeCreatePositionModal();
+                navigateToStep(3, name);
+            } catch (e) {
+                showToast("Failed to create position", true);
+            }
+        }
+
         async function deletePosition(posName) {
             promptConfirm(
                 "Delete Position",
@@ -1141,6 +1287,7 @@
                             p_position: posName
                         });
                         showToast(`Position '${posName}' deleted successfully.`);
+                        await fetchPositions();
                         await fetchQuestions();
                         navigateToStep(2);
                     } catch (e) {
@@ -1157,8 +1304,10 @@
             document.getElementById('editor-position-title').textContent = `${activePosition} Editor`;
             document.getElementById('editor-position-subtitle').textContent = `Manage application questions, order, and auto-role rules for ${activePosition}.`;
 
-            const isEnabled = settingsData[`auto_role_enabled_${activePosition}`] === 'true' || settingsData['auto_role_enabled'] === 'true';
-            const roleId = settingsData[`auto_role_id_${activePosition}`] || settingsData['auto_role_id'] || '';
+            const posObj = positionsData.find(p => p.name.toLowerCase() === activePosition.toLowerCase()) || {};
+
+            const isEnabled = posObj.auto_role_enabled === true;
+            const roleId = posObj.auto_role_id || '';
 
             document.getElementById('auto-role-enabled-toggle').checked = isEnabled;
             document.getElementById('auto-role-id-input').value = roleId;
@@ -1371,36 +1520,28 @@
 
         async function savePositionSettings(e) {
             e.preventDefault();
-            const enabled = document.getElementById('auto-role-enabled-toggle').checked ? 'true' : 'false';
+            const enabled = document.getElementById('auto-role-enabled-toggle').checked;
             const roleId = document.getElementById('auto-role-id-input').value.trim();
 
+            const posObj = positionsData.find(p => p.name.toLowerCase() === activePosition.toLowerCase()) || {
+                name: activePosition, display_order: 999, description: 'Application position.', is_enabled: true
+            };
+
             try {
-                await dbClient.rpc('admin_save_setting', {
+                const { data, error } = await dbClient.rpc('admin_save_position', {
                     p_token: adminToken,
-                    p_key: `auto_role_enabled_${activePosition}`,
-                    p_value: enabled
+                    p_name: posObj.name,
+                    p_display_order: posObj.display_order || 999,
+                    p_description: posObj.description || '',
+                    p_is_enabled: posObj.is_enabled !== false,
+                    p_auto_role_enabled: enabled,
+                    p_auto_role_id: roleId
                 });
 
-                await dbClient.rpc('admin_save_setting', {
-                    p_token: adminToken,
-                    p_key: `auto_role_id_${activePosition}`,
-                    p_value: roleId
-                });
-
-                await dbClient.rpc('admin_save_setting', {
-                    p_token: adminToken,
-                    p_key: 'auto_role_enabled',
-                    p_value: enabled
-                });
-
-                await dbClient.rpc('admin_save_setting', {
-                    p_token: adminToken,
-                    p_key: 'auto_role_id',
-                    p_value: roleId
-                });
+                if (error || !data || !data.success) throw new Error("Failed to save position auto-role settings");
 
                 showToast("Position auto-role settings saved!");
-                await fetchSettings();
+                await fetchPositions();
             } catch (err) {
                 showToast(err.message, true);
             }
@@ -1428,9 +1569,9 @@
             document.getElementById('create-position-form').onsubmit = (e) => {
                 e.preventDefault();
                 const name = document.getElementById('new-pos-name').value.trim();
+                const desc = document.getElementById('new-pos-desc').value.trim();
                 if (name) {
-                    closeCreatePositionModal();
-                    navigateToStep(3, name); // Preserves exact string casing
+                    createNewPosition(name, desc);
                 }
             };
         });

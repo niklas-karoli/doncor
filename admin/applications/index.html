@@ -1,0 +1,1367 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Applications Admin Dashboard | DONCOR WINGS PTFS</title>
+    <link rel="stylesheet" href="../../assets/css/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <link rel="icon" href="data:image/svg+xml,<svg viewBox='0 0 100 100' xmlns='http://www.w3.org/2000/svg'><path d='M10 50 L40 20 L90 20 L50 50 L90 80 L40 80 Z' fill='%23FFC800'/><path d='M20 50 L45 35 L75 35 L50 50 L75 65 L45 65 Z' fill='%23ffffff' opacity='0.8'/></svg>">
+    <style>
+        .admin-page {
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            background-color: var(--bg-dark);
+        }
+
+        /* Fixed Header spacing fix */
+        .admin-header-nav {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            width: 100%;
+        }
+
+        .admin-badge {
+            background: rgba(255, 200, 0, 0.15);
+            color: var(--accent-yellow);
+            border: 1px solid var(--accent-yellow);
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 700;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+        }
+
+        .admin-container {
+            padding-top: 130px; /* Crucial: Prevents header overlap */
+            padding-bottom: 80px;
+            flex-grow: 1;
+        }
+
+        /* Error / Unauthorized State */
+        .auth-error-card {
+            background: rgba(17, 22, 37, 0.95);
+            border: 1px solid rgba(255, 75, 75, 0.3);
+            border-top: 4px solid #ff4b4b;
+            border-radius: 12px;
+            padding: 40px;
+            text-align: center;
+            max-width: 550px;
+            margin: 40px auto;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+        }
+
+        .auth-error-card h2 {
+            color: #ff4b4b;
+            font-size: 1.8rem;
+            margin-bottom: 15px;
+            font-family: 'Montserrat', sans-serif;
+        }
+
+        .auth-error-card p {
+            color: var(--text-muted);
+            line-height: 1.6;
+            margin-bottom: 25px;
+        }
+
+        /* Breadcrumbs & Flow Header */
+        .admin-breadcrumbs {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            color: var(--text-muted);
+            font-size: 0.9rem;
+            margin-bottom: 25px;
+        }
+
+        .admin-breadcrumbs a, .admin-breadcrumbs span.crumb-btn {
+            color: var(--accent-yellow);
+            text-decoration: none;
+            cursor: pointer;
+            font-weight: 600;
+            transition: opacity 0.2s;
+        }
+
+        .admin-breadcrumbs a:hover, .admin-breadcrumbs span.crumb-btn:hover {
+            opacity: 0.8;
+        }
+
+        .workspace-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+            flex-wrap: wrap;
+            gap: 20px;
+        }
+
+        .workspace-title h1 {
+            font-size: 2.2rem;
+            font-weight: 700;
+            color: var(--white);
+            margin-bottom: 6px;
+        }
+
+        .workspace-title p {
+            color: var(--text-muted);
+            font-size: 0.95rem;
+        }
+
+        /* Step 1: Modular Grid Cards */
+        .modules-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 25px;
+            margin-top: 20px;
+        }
+
+        .module-card {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 12px;
+            padding: 30px;
+            cursor: pointer;
+            transition: all 0.25s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .module-card:hover {
+            border-color: var(--accent-yellow);
+            transform: translateY(-4px);
+            background: rgba(255, 200, 0, 0.04);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+        }
+
+        .module-card.disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            pointer-events: none;
+        }
+
+        .module-icon {
+            width: 50px;
+            height: 50px;
+            background: rgba(255, 200, 0, 0.1);
+            border: 1px solid var(--accent-yellow);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 20px;
+            color: var(--accent-yellow);
+        }
+
+        .module-card h3 {
+            font-size: 1.3rem;
+            color: var(--white);
+            margin-bottom: 10px;
+            font-family: 'Montserrat', sans-serif;
+        }
+
+        .module-card p {
+            color: var(--text-muted);
+            font-size: 0.9rem;
+            line-height: 1.5;
+        }
+
+        .module-badge {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            font-size: 0.75rem;
+            padding: 3px 10px;
+            border-radius: 12px;
+            font-weight: 700;
+            text-transform: uppercase;
+        }
+
+        .module-badge.active {
+            background: rgba(255, 200, 0, 0.15);
+            color: var(--accent-yellow);
+        }
+
+        .module-badge.coming-soon {
+            background: rgba(255, 255, 255, 0.1);
+            color: var(--text-muted);
+        }
+
+        /* Step 2: Position Grid */
+        .positions-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+
+        .position-card {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 10px;
+            padding: 24px;
+            transition: all 0.2s ease;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .position-card:hover {
+            border-color: var(--accent-yellow);
+            background: rgba(255, 200, 0, 0.05);
+        }
+
+        .position-info h4 {
+            font-size: 1.15rem;
+            color: var(--white);
+            margin-bottom: 6px;
+            font-family: 'Montserrat', sans-serif;
+        }
+
+        .position-info p {
+            color: var(--text-muted);
+            font-size: 0.85rem;
+        }
+
+        .position-actions {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        /* Step 3: Editor Layout */
+        .editor-section-card {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 12px;
+            padding: 28px;
+            margin-bottom: 30px;
+        }
+
+        .editor-section-card h3 {
+            font-size: 1.2rem;
+            color: var(--white);
+            margin-bottom: 6px;
+            font-family: 'Montserrat', sans-serif;
+        }
+
+        .editor-section-card p.subtitle {
+            color: var(--text-muted);
+            font-size: 0.85rem;
+            margin-bottom: 20px;
+        }
+
+        /* Toggle Slider Component */
+        .toggle-switch-group {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            padding: 16px 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 50px;
+            height: 26px;
+        }
+
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background-color: rgba(255, 255, 255, 0.2);
+            transition: .3s;
+            border-radius: 34px;
+        }
+
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 18px;
+            width: 18px;
+            left: 4px;
+            bottom: 4px;
+            background-color: white;
+            transition: .3s;
+            border-radius: 50%;
+        }
+
+        input:checked + .slider {
+            background-color: var(--accent-yellow);
+        }
+
+        input:checked + .slider:before {
+            transform: translateX(24px);
+            background-color: #111625;
+        }
+
+        /* Inputs & Form Elements */
+        .select-input, .text-input, .number-input, .textarea-input {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            color: var(--white);
+            padding: 10px 14px;
+            border-radius: 6px;
+            font-size: 0.95rem;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        .select-input:focus, .text-input:focus, .number-input:focus, .textarea-input:focus {
+            border-color: var(--accent-yellow);
+        }
+
+        .form-group {
+            margin-bottom: 18px;
+        }
+
+        .form-group label {
+            display: block;
+            color: var(--white);
+            font-size: 0.85rem;
+            font-weight: 600;
+            margin-bottom: 6px;
+        }
+
+        .form-group input, .form-group textarea, .form-group select {
+            width: 100%;
+            box-sizing: border-box;
+        }
+
+        /* Question Cards & Controls */
+        .question-card {
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 8px;
+            padding: 18px 22px;
+            margin-bottom: 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 20px;
+        }
+
+        .question-meta {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 8px;
+        }
+
+        .order-badge {
+            color: var(--accent-yellow);
+            font-size: 0.85rem;
+            font-weight: 700;
+        }
+
+        .req-badge {
+            font-size: 0.75rem;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-weight: 600;
+        }
+
+        .req-badge.required {
+            background: rgba(255, 200, 0, 0.15);
+            color: var(--accent-yellow);
+        }
+
+        .req-badge.optional {
+            background: rgba(255, 255, 255, 0.05);
+            color: var(--text-muted);
+        }
+
+        .words-badge {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+        }
+
+        .question-text {
+            font-size: 1rem;
+            color: var(--white);
+            line-height: 1.5;
+            word-break: break-word;
+        }
+
+        .question-actions {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            flex-shrink: 0;
+        }
+
+        .btn-icon {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: var(--white);
+            padding: 6px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            transition: all 0.2s ease;
+        }
+
+        .btn-icon:hover {
+            background: rgba(255, 200, 0, 0.2);
+            color: var(--accent-yellow);
+            border-color: var(--accent-yellow);
+        }
+
+        .btn-icon.danger:hover {
+            background: rgba(255, 75, 75, 0.2);
+            color: #ff4b4b;
+            border-color: #ff4b4b;
+        }
+
+        /* Toast Notifications */
+        .toast-container {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            z-index: 10000;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .toast {
+            background: var(--bg-dark);
+            border-left: 4px solid var(--accent-yellow);
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            border-right: 1px solid rgba(255, 255, 255, 0.1);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            color: var(--white);
+            padding: 14px 20px;
+            border-radius: 6px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+            font-size: 0.9rem;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            animation: slideInRight 0.3s ease;
+        }
+
+        .toast.error {
+            border-left-color: #ff4b4b;
+        }
+
+        @keyframes slideInRight {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+
+        .empty-state-card {
+            text-align: center;
+            padding: 40px 20px;
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px dashed rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            color: var(--text-muted);
+        }
+
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 18px;
+            cursor: pointer;
+        }
+
+        .checkbox-group input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            accent-color: var(--accent-yellow);
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="admin-page">
+        <!-- Header -->
+        <header>
+            <div class="container admin-header-nav">
+                <a href="https://doncorwings-ptfs.com/" class="logo">
+                    <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M10 50 L40 20 L90 20 L50 50 L90 80 L40 80 Z" fill="#FFC800"/>
+                        <path d="M20 50 L45 35 L75 35 L50 50 L75 65 L45 65 Z" fill="#ffffff" opacity="0.8"/>
+                    </svg>
+                    <div class="logo-text">
+                        <span class="main-line">DONCOR WINGS</span>
+                        <span class="sub-line">by DONCOR AIRLINE PTFS</span>
+                    </div>
+                </a>
+
+                <div style="display: flex; align-items: center; gap: 15px;">
+                    <span class="admin-badge">Admin Dashboard</span>
+                    <button id="sign-out-btn" class="btn btn-outline btn-sm" style="display: none;">End Session</button>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content Area -->
+        <main class="container admin-container">
+
+            <!-- Loading Spinner State -->
+            <div id="loading-state" style="text-align: center; padding: 100px 0;">
+                <div class="loading-spinner" style="margin: 0 auto 20px;"></div>
+                <p style="color: var(--text-muted);">Verifying admin credentials...</p>
+            </div>
+
+            <!-- Error / Invalid Token Screen -->
+            <div id="auth-error-state" class="auth-error-card" style="display: none;">
+                <h2>Access Denied</h2>
+                <p id="auth-error-message">Invalid or Expired Admin Link. Please request a new authentication link from your administrator.</p>
+                <a href="https://doncorwings-ptfs.com/admin/" class="btn btn-primary btn-sm">Return to Admin Portal</a>
+            </div>
+
+            <!-- Dashboard Content Workspace -->
+            <div id="dashboard-workspace" style="display: none;">
+
+                <!-- Breadcrumb Navigation -->
+                <div id="breadcrumbs" class="admin-breadcrumbs">
+                    <!-- Dynamic Breadcrumbs Inserted Here -->
+                </div>
+
+                <!-- STEP 1: Main Menu Hub -->
+                <div id="view-step-1" class="step-view" style="display: none;">
+                    <div class="workspace-header">
+                        <div class="workspace-title">
+                            <h1>Admin Dashboard Hub</h1>
+                            <p>Select a management module to configure Discord bot and platform settings.</p>
+                        </div>
+                    </div>
+
+                    <div class="modules-grid">
+                        <div class="module-card" id="module-apps">
+                            <span class="module-badge active">Active</span>
+                            <div class="module-icon">
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                                    <polyline points="14 2 14 8 20 8"></polyline>
+                                    <line x1="16" y1="13" x2="8" y2="13"></line>
+                                    <line x1="16" y1="17" x2="8" y2="17"></line>
+                                    <polyline points="10 9 9 9 8 9"></polyline>
+                                </svg>
+                            </div>
+                            <h3>Applications Management</h3>
+                            <p>Configure staff application questions, word counts, positions, and auto-role assignments live.</p>
+                        </div>
+
+                        <div class="module-card disabled">
+                            <span class="module-badge coming-soon">Coming Soon</span>
+                            <div class="module-icon">
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                                    <circle cx="9" cy="7" r="4"></circle>
+                                    <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                                    <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                                </svg>
+                            </div>
+                            <h3>User Management</h3>
+                            <p>Manage community pilot accounts, mileage balance adjustments, and tier ranks.</p>
+                        </div>
+
+                        <div class="module-card disabled">
+                            <span class="module-badge coming-soon">Coming Soon</span>
+                            <div class="module-icon">
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
+                                </svg>
+                            </div>
+                            <h3>Audit Logs & Metrics</h3>
+                            <p>View bot operation logs, administrative change history, and active application stats.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- STEP 2: Position / Role Selection -->
+                <div id="view-step-2" class="step-view" style="display: none;">
+                    <div class="workspace-header">
+                        <div class="workspace-title">
+                            <h1>Select Staff Position</h1>
+                            <p>Choose an application position to manage its questions and auto-role rules.</p>
+                        </div>
+                        <button id="create-custom-pos-btn" class="btn btn-primary btn-sm">+ Add New Position / Role</button>
+                    </div>
+
+                    <div id="positions-grid-container" class="positions-grid">
+                        <!-- Dynamic Position Cards Inserted Here -->
+                    </div>
+                </div>
+
+                <!-- STEP 3: Position Application Editor -->
+                <div id="view-step-3" class="step-view" style="display: none;">
+                    <div class="workspace-header">
+                        <div class="workspace-title">
+                            <h1 id="editor-position-title">Position Editor</h1>
+                            <p id="editor-position-subtitle">Managing questions and configuration for this position.</p>
+                        </div>
+                        <div style="display: flex; gap: 10px;">
+                            <button id="delete-position-btn" class="btn btn-outline btn-sm danger" style="color: #ff4b4b; border-color: rgba(255,75,75,0.4);">Delete Position</button>
+                            <button id="add-q-btn" class="btn btn-primary btn-sm">+ Add New Question</button>
+                        </div>
+                    </div>
+
+                    <!-- Auto-Role Assignment & Settings Card -->
+                    <div class="editor-section-card">
+                        <h3>Auto-Role Assignment Settings</h3>
+                        <p class="subtitle">Automatically grant a specific Discord role upon application approval for this position.</p>
+
+                        <form id="position-settings-form">
+                            <div class="toggle-switch-group">
+                                <div>
+                                    <strong style="color: var(--white); display: block;">Auto Assign Role on Approval</strong>
+                                    <small style="color: var(--text-muted);">Automatically assign the configured role ID when accepted by a reviewer.</small>
+                                </div>
+                                <label class="switch">
+                                    <input type="checkbox" id="auto-role-enabled-toggle">
+                                    <span class="slider"></span>
+                                </label>
+                            </div>
+
+                            <div style="display: grid; grid-template-columns: 1fr auto; gap: 15px; align-items: flex-end;">
+                                <div class="form-group" style="margin-bottom: 0;">
+                                    <label for="auto-role-id-input">Role ID to Assign</label>
+                                    <input type="text" id="auto-role-id-input" class="text-input" placeholder="e.g. 123456789012345678">
+                                </div>
+                                <button type="submit" class="btn btn-primary btn-sm">Save Role Settings</button>
+                            </div>
+                        </form>
+                    </div>
+
+                    <!-- Questions List Card -->
+                    <div class="editor-section-card">
+                        <h3>Application Questions</h3>
+                        <p class="subtitle">Reorder questions, set word limits, and mark mandatory requirements.</p>
+
+                        <div id="position-questions-container">
+                            <!-- Questions Inserted Here -->
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+        </main>
+
+        <!-- Footer -->
+        <footer>
+            <div class="container">
+                <div class="hazard-line" style="max-width: 200px; margin: 0 auto 30px;"></div>
+                <p class="legal-text">
+                    Doncor Wings PTFS is a fictional roleplay community for Roblox. This is a virtual flight; no real-world tickets or monetary transactions are involved.
+                </p>
+            </div>
+        </footer>
+    </div>
+
+    <!-- Create Custom Position Modal -->
+    <div id="create-position-modal" class="modal-overlay">
+        <div class="modal-content" style="max-width: 500px;">
+            <div class="modal-hazard"></div>
+            <div class="modal-body">
+                <h3>Add New Position / Role</h3>
+
+                <form id="create-position-form" style="padding-top: 15px;">
+                    <div class="form-group">
+                        <label for="new-pos-name">Position Name</label>
+                        <input type="text" id="new-pos-name" class="text-input" placeholder="e.g. Flight Attendant" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="new-pos-desc">Position Description (Optional)</label>
+                        <input type="text" id="new-pos-desc" class="text-input" placeholder="Short summary of duties...">
+                    </div>
+
+                    <div class="modal-actions" style="margin-top: 20px;">
+                        <button type="button" id="create-pos-cancel" class="btn btn-outline btn-sm">Cancel</button>
+                        <button type="submit" class="btn btn-primary btn-sm">Create Position</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Question Add/Edit Modal (Auto Indexing on Creation) -->
+    <div id="question-modal" class="modal-overlay">
+        <div class="modal-content" style="max-width: 600px;">
+            <div class="modal-hazard"></div>
+            <div class="modal-body">
+                <h3 id="question-modal-title">Add Application Question</h3>
+
+                <form id="question-form" style="padding-top: 15px;">
+                    <input type="hidden" id="q-id">
+
+                    <div class="form-group">
+                        <label for="q-text">Question Text</label>
+                        <textarea id="q-text" class="textarea-input" rows="3" placeholder="Enter the application question text..." required></textarea>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="q-min-words">Minimum Word Requirement</label>
+                        <input type="number" id="q-min-words" class="number-input" min="0" value="0" required>
+                    </div>
+
+                    <label class="checkbox-group">
+                        <input type="checkbox" id="q-required" checked>
+                        <span style="color: var(--white); font-size: 0.9rem;">Mark as Required Question</span>
+                    </label>
+
+                    <div class="modal-actions" style="margin-top: 20px;">
+                        <button type="button" id="q-modal-cancel" class="btn btn-outline btn-sm">Cancel</button>
+                        <button type="submit" class="btn btn-primary btn-sm">Save Question</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Confirm Modal -->
+    <div id="confirm-modal" class="modal-overlay">
+        <div class="modal-content">
+            <div class="modal-hazard"></div>
+            <div class="modal-body">
+                <h3 id="confirm-modal-title">Confirm Action</h3>
+                <p id="confirm-modal-message">Are you sure you want to proceed?</p>
+                <div class="modal-actions">
+                    <button id="confirm-modal-cancel" class="btn btn-outline btn-sm">Cancel</button>
+                    <button id="confirm-modal-submit" class="btn btn-primary btn-sm">Confirm</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div id="toast-container" class="toast-container"></div>
+
+    <script src="../../assets/js/main.js"></script>
+    <script>
+        // Applications Admin Dashboard Controller
+        const ADMIN_SESSION_KEY = 'doncor_admin_token';
+        const DEFAULT_POSITIONS = [
+            { id: 'pilot', name: 'Pilot', desc: 'Flight operations and virtual pilot applications.' },
+            { id: 'ground crew', name: 'Ground Crew', desc: 'Airport operations and apron service team.' },
+            { id: 'cabin crew', name: 'Cabin Crew', desc: 'In-flight service and passenger experience.' },
+            { id: 'human resources', name: 'Human Resources', desc: 'Recruitment, staff management, and reviews.' },
+            { id: 'flight manager', name: 'Flight Manager', desc: 'Flight scheduling and ATC coordination.' },
+            { id: 'airline manager', name: 'Airline Manager', desc: 'Executive leadership and guild management.' }
+        ];
+
+        let adminToken = null;
+        let questionsData = [];
+        let settingsData = {};
+        let currentStep = 1;
+        let activePosition = null;
+
+        // --- Toast Notifications ---
+        function showToast(message, isError = false) {
+            const container = document.getElementById('toast-container');
+            if (!container) return;
+            const toast = document.createElement('div');
+            toast.className = `toast ${isError ? 'error' : ''}`;
+            toast.textContent = message;
+            container.appendChild(toast);
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                toast.style.transition = 'opacity 0.3s ease';
+                setTimeout(() => toast.remove(), 300);
+            }, 3500);
+        }
+
+        // --- Custom Confirm Modal ---
+        function promptConfirm(title, message, onConfirm) {
+            const modal = document.getElementById('confirm-modal');
+            const titleEl = document.getElementById('confirm-modal-title');
+            const messageEl = document.getElementById('confirm-modal-message');
+            const submitBtn = document.getElementById('confirm-modal-submit');
+            const cancelBtn = document.getElementById('confirm-modal-cancel');
+
+            if (!modal) return;
+            titleEl.textContent = title;
+            messageEl.textContent = message;
+            modal.style.display = 'flex';
+
+            const close = () => {
+                modal.style.display = 'none';
+                submitBtn.onclick = null;
+                cancelBtn.onclick = null;
+            };
+
+            submitBtn.onclick = async () => {
+                close();
+                await onConfirm();
+            };
+            cancelBtn.onclick = close;
+        }
+
+        // --- Authentication & Session Cleanup ---
+        async function initAdminAuth() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const tokenFromUrl = urlParams.get('token');
+
+            if (tokenFromUrl) {
+                try {
+                    const { data, error } = await dbClient.rpc('validate_and_consume_admin_token', {
+                        p_token: tokenFromUrl
+                    });
+
+                    if (error || !data || !data.success) {
+                        const errMsg = data?.error || error?.message || "Invalid or Expired Admin Link";
+                        await destroySessionAndRedirect(errMsg);
+                        return;
+                    }
+
+                    adminToken = tokenFromUrl;
+                    sessionStorage.setItem(ADMIN_SESSION_KEY, adminToken);
+
+                    // Clean URL
+                    window.history.replaceState({}, document.title, window.location.pathname);
+                    loadDashboard();
+                } catch (e) {
+                    await destroySessionAndRedirect("Authentication request failed.");
+                }
+            } else {
+                const storedToken = sessionStorage.getItem(ADMIN_SESSION_KEY);
+                if (storedToken) {
+                    adminToken = storedToken;
+                    try {
+                        const { data, error } = await dbClient.rpc('is_valid_admin_session', {
+                            p_token: adminToken
+                        });
+
+                        if (!error && data === true) {
+                            loadDashboard();
+                            return;
+                        }
+                    } catch (e) {}
+                }
+                await destroySessionAndRedirect("Invalid or Expired Admin Link");
+            }
+        }
+
+        async function destroySessionAndRedirect(msg) {
+            if (adminToken) {
+                try {
+                    await dbClient.rpc('admin_destroy_session', { p_token: adminToken });
+                } catch (e) {}
+            }
+            sessionStorage.removeItem(ADMIN_SESSION_KEY);
+            adminToken = null;
+
+            showAuthError(msg);
+        }
+
+        function showAuthError(msg) {
+            document.getElementById('loading-state').style.display = 'none';
+            document.getElementById('dashboard-workspace').style.display = 'none';
+            document.getElementById('sign-out-btn').style.display = 'none';
+            const errorState = document.getElementById('auth-error-state');
+            document.getElementById('auth-error-message').textContent = msg;
+            errorState.style.display = 'block';
+        }
+
+        async function loadDashboard() {
+            document.getElementById('loading-state').style.display = 'none';
+            document.getElementById('auth-error-state').style.display = 'none';
+            document.getElementById('dashboard-workspace').style.display = 'block';
+
+            const signOutBtn = document.getElementById('sign-out-btn');
+            signOutBtn.style.display = 'inline-block';
+            signOutBtn.onclick = () => {
+                promptConfirm(
+                    "End Admin Session",
+                    "Are you sure you want to sign out? Your admin link session will be destroyed.",
+                    () => destroySessionAndRedirect("Session ended successfully.")
+                );
+            };
+
+            await fetchQuestions();
+            await fetchSettings();
+
+            navigateToStep(1);
+        }
+
+        // --- Navigation Flow (Steps 1, 2, 3) ---
+        function navigateToStep(step, positionId = null) {
+            currentStep = step;
+            if (positionId) activePosition = positionId.toLowerCase();
+
+            document.querySelectorAll('.step-view').forEach(v => v.style.display = 'none');
+            renderBreadcrumbs();
+
+            if (step === 1) {
+                document.getElementById('view-step-1').style.display = 'block';
+            } else if (step === 2) {
+                renderPositionsGrid();
+                document.getElementById('view-step-2').style.display = 'block';
+            } else if (step === 3) {
+                renderPositionEditor();
+                document.getElementById('view-step-3').style.display = 'block';
+            }
+        }
+
+        function renderBreadcrumbs() {
+            const container = document.getElementById('breadcrumbs');
+            container.innerHTML = '';
+
+            const homeSpan = document.createElement('span');
+            homeSpan.className = 'crumb-btn';
+            homeSpan.textContent = 'Main Menu';
+            homeSpan.onclick = () => navigateToStep(1);
+            container.appendChild(homeSpan);
+
+            if (currentStep >= 2) {
+                const sep1 = document.createElement('span');
+                sep1.textContent = ' / ';
+                container.appendChild(sep1);
+
+                const posSpan = document.createElement('span');
+                posSpan.className = 'crumb-btn';
+                posSpan.textContent = 'Positions';
+                posSpan.onclick = () => navigateToStep(2);
+                container.appendChild(posSpan);
+            }
+
+            if (currentStep === 3 && activePosition) {
+                const sep2 = document.createElement('span');
+                sep2.textContent = ' / ';
+                container.appendChild(sep2);
+
+                const currentCrumb = document.createElement('span');
+                currentCrumb.style.color = 'var(--white)';
+                currentCrumb.style.fontWeight = '700';
+                currentCrumb.textContent = activePosition.toUpperCase();
+                container.appendChild(currentCrumb);
+            }
+        }
+
+        // --- Data Fetching ---
+        async function fetchQuestions() {
+            try {
+                const { data, error } = await dbClient
+                    .from('application_questions')
+                    .select('*')
+                    .order('order_index', { ascending: true });
+
+                if (error) throw error;
+                questionsData = data || [];
+            } catch (err) {
+                showToast("Failed to fetch application questions", true);
+            }
+        }
+
+        async function fetchSettings() {
+            try {
+                const { data, error } = await dbClient
+                    .from('application_settings')
+                    .select('*');
+
+                if (error) throw error;
+                settingsData = {};
+                (data || []).forEach(item => {
+                    settingsData[item.key] = item.value;
+                });
+            } catch (err) {
+                showToast("Failed to fetch settings", true);
+            }
+        }
+
+        // --- Step 2: Positions Grid & Custom Modals ---
+        function renderPositionsGrid() {
+            const container = document.getElementById('positions-grid-container');
+            container.innerHTML = '';
+
+            const dbPositions = [...new Set(questionsData.map(q => q.position.toLowerCase()))];
+            const allPositions = [...DEFAULT_POSITIONS];
+
+            dbPositions.forEach(dp => {
+                if (!allPositions.some(p => p.id === dp)) {
+                    allPositions.push({
+                        id: dp,
+                        name: dp.toUpperCase(),
+                        desc: 'Custom application position.'
+                    });
+                }
+            });
+
+            allPositions.forEach(pos => {
+                const qCount = questionsData.filter(q => q.position.toLowerCase() === pos.id).length;
+                const card = document.createElement('div');
+                card.className = 'position-card';
+
+                const info = document.createElement('div');
+                info.className = 'position-info';
+
+                const h4 = document.createElement('h4');
+                h4.textContent = pos.name;
+                info.appendChild(h4);
+
+                const p = document.createElement('p');
+                p.textContent = `${pos.desc} (${qCount} question${qCount === 1 ? '' : 's'})`;
+                info.appendChild(p);
+
+                card.appendChild(info);
+
+                const actions = document.createElement('div');
+                actions.className = 'position-actions';
+
+                const delBtn = document.createElement('button');
+                delBtn.className = 'btn-icon danger';
+                delBtn.textContent = 'Delete';
+                delBtn.onclick = (e) => {
+                    e.stopPropagation();
+                    deletePosition(pos.id, pos.name);
+                };
+                actions.appendChild(delBtn);
+
+                const arrow = document.createElement('div');
+                arrow.style.color = 'var(--accent-yellow)';
+                arrow.style.fontWeight = 'bold';
+                arrow.style.marginLeft = '10px';
+                arrow.innerHTML = '&#8594;';
+                actions.appendChild(arrow);
+
+                card.appendChild(actions);
+
+                card.onclick = () => navigateToStep(3, pos.id);
+                container.appendChild(card);
+            });
+        }
+
+        function openCreatePositionModal() {
+            const modal = document.getElementById('create-position-modal');
+            document.getElementById('create-position-form').reset();
+            modal.style.display = 'flex';
+        }
+
+        function closeCreatePositionModal() {
+            document.getElementById('create-position-modal').style.display = 'none';
+        }
+
+        async function deletePosition(posId, posName) {
+            promptConfirm(
+                "Delete Position",
+                `Are you sure you want to completely delete '${posName}' and remove all its assigned questions?`,
+                async () => {
+                    try {
+                        await dbClient.rpc('admin_delete_position', {
+                            p_token: adminToken,
+                            p_position: posId
+                        });
+                        showToast(`Position '${posName}' deleted successfully.`);
+                        await fetchQuestions();
+                        if (currentStep === 3 && activePosition === posId) {
+                            navigateToStep(2);
+                        } else if (currentStep === 2) {
+                            renderPositionsGrid();
+                        }
+                    } catch (e) {
+                        showToast("Failed to delete position", true);
+                    }
+                }
+            );
+        }
+
+        // --- Step 3: Position Application Editor ---
+        function renderPositionEditor() {
+            if (!activePosition) return;
+
+            document.getElementById('editor-position-title').textContent = `${activePosition.toUpperCase()} Editor`;
+            document.getElementById('editor-position-subtitle').textContent = `Manage application questions, order, and auto-role rules for ${activePosition}.`;
+
+            const isEnabled = settingsData[`auto_role_enabled_${activePosition}`] === 'true' || settingsData['auto_role_enabled'] === 'true';
+            const roleId = settingsData[`auto_role_id_${activePosition}`] || settingsData['auto_role_id'] || '';
+
+            document.getElementById('auto-role-enabled-toggle').checked = isEnabled;
+            document.getElementById('auto-role-id-input').value = roleId;
+
+            renderPositionQuestions();
+        }
+
+        function renderPositionQuestions() {
+            const container = document.getElementById('position-questions-container');
+            const filtered = questionsData
+                .filter(q => q.position.toLowerCase() === activePosition)
+                .sort((a, b) => a.order_index - b.order_index);
+
+            if (filtered.length === 0) {
+                container.innerHTML = '<div class="empty-state-card">No questions configured for this position. Click "+ Add New Question" to create one.</div>';
+                return;
+            }
+
+            container.innerHTML = '';
+            filtered.forEach((q, idx) => {
+                const card = document.createElement('div');
+                card.className = 'question-card';
+
+                const main = document.createElement('div');
+                main.style.flexGrow = '1';
+
+                const meta = document.createElement('div');
+                meta.className = 'question-meta';
+
+                const orderBadge = document.createElement('span');
+                orderBadge.className = 'order-badge';
+                orderBadge.textContent = `#${idx + 1} (Order: ${q.order_index})`;
+                meta.appendChild(orderBadge);
+
+                const wordsBadge = document.createElement('span');
+                wordsBadge.className = 'words-badge';
+                wordsBadge.textContent = `Min words: ${q.min_words || 0}`;
+                meta.appendChild(wordsBadge);
+
+                const reqBadge = document.createElement('span');
+                reqBadge.className = `req-badge ${q.is_required ? 'required' : 'optional'}`;
+                reqBadge.textContent = q.is_required ? 'Required' : 'Optional';
+                meta.appendChild(reqBadge);
+
+                main.appendChild(meta);
+
+                const qText = document.createElement('div');
+                qText.className = 'question-text';
+                qText.textContent = q.question_text;
+                main.appendChild(qText);
+
+                card.appendChild(main);
+
+                const actions = document.createElement('div');
+                actions.className = 'question-actions';
+
+                if (idx > 0) {
+                    const upBtn = document.createElement('button');
+                    upBtn.className = 'btn-icon';
+                    upBtn.textContent = '▲';
+                    upBtn.title = 'Move Up';
+                    upBtn.onclick = () => swapQuestionOrder(q, filtered[idx - 1]);
+                    actions.appendChild(upBtn);
+                }
+
+                if (idx < filtered.length - 1) {
+                    const downBtn = document.createElement('button');
+                    downBtn.className = 'btn-icon';
+                    downBtn.textContent = '▼';
+                    downBtn.title = 'Move Down';
+                    downBtn.onclick = () => swapQuestionOrder(q, filtered[idx + 1]);
+                    actions.appendChild(downBtn);
+                }
+
+                const editBtn = document.createElement('button');
+                editBtn.className = 'btn-icon';
+                editBtn.textContent = 'Edit';
+                editBtn.onclick = () => openQuestionModal(q);
+                actions.appendChild(editBtn);
+
+                const deleteBtn = document.createElement('button');
+                deleteBtn.className = 'btn-icon danger';
+                deleteBtn.textContent = 'Delete';
+                deleteBtn.onclick = () => {
+                    promptConfirm(
+                        "Delete Question",
+                        "Are you sure you want to delete this question?",
+                        () => deleteQuestion(q.id)
+                    );
+                };
+                actions.appendChild(deleteBtn);
+
+                card.appendChild(actions);
+                container.appendChild(card);
+            });
+        }
+
+        async function swapQuestionOrder(q1, q2) {
+            try {
+                const tempIndex = q1.order_index;
+                q1.order_index = q2.order_index;
+                q2.order_index = tempIndex;
+
+                await dbClient.rpc('admin_save_question', {
+                    p_token: adminToken, p_id: q1.id, p_position: q1.position,
+                    p_question_text: q1.question_text, p_order_index: q1.order_index,
+                    p_min_words: q1.min_words, p_is_required: q1.is_required
+                });
+
+                await dbClient.rpc('admin_save_question', {
+                    p_token: adminToken, p_id: q2.id, p_position: q2.position,
+                    p_question_text: q2.question_text, p_order_index: q2.order_index,
+                    p_min_words: q2.min_words, p_is_required: q2.is_required
+                });
+
+                showToast("Question order updated!");
+                await fetchQuestions();
+                renderPositionQuestions();
+            } catch (e) {
+                showToast("Failed to reorder questions", true);
+            }
+        }
+
+        // --- Question CRUD Modal (Auto Indexing on Creation) ---
+        function openQuestionModal(question = null) {
+            const modal = document.getElementById('question-modal');
+            const title = document.getElementById('question-modal-title');
+            const form = document.getElementById('question-form');
+
+            if (question) {
+                title.textContent = 'Edit Application Question';
+                document.getElementById('q-id').value = question.id;
+                document.getElementById('q-text').value = question.question_text;
+                document.getElementById('q-min-words').value = question.min_words;
+                document.getElementById('q-required').checked = question.is_required;
+            } else {
+                title.textContent = 'Add Application Question';
+                form.reset();
+                document.getElementById('q-id').value = '';
+                document.getElementById('q-min-words').value = 0;
+                document.getElementById('q-required').checked = true;
+            }
+
+            modal.style.display = 'flex';
+        }
+
+        function closeQuestionModal() {
+            document.getElementById('question-modal').style.display = 'none';
+        }
+
+        async function saveQuestion(e) {
+            e.preventDefault();
+            const id = document.getElementById('q-id').value || null;
+            const question_text = document.getElementById('q-text').value.trim();
+            const min_words = parseInt(document.getElementById('q-min-words').value) || 0;
+            const is_required = document.getElementById('q-required').checked;
+
+            if (!question_text) return showToast("Question text cannot be empty", true);
+
+            // Auto-indexing logic: assign max + 1 for new questions
+            let order_index = 0;
+            if (id) {
+                const existing = questionsData.find(q => q.id === id);
+                if (existing) order_index = existing.order_index;
+            } else {
+                const posQuestions = questionsData.filter(q => q.position.toLowerCase() === activePosition);
+                const maxIndex = posQuestions.reduce((max, q) => q.order_index > max ? q.order_index : max, -1);
+                order_index = maxIndex + 1;
+            }
+
+            try {
+                const { data, error } = await dbClient.rpc('admin_save_question', {
+                    p_token: adminToken,
+                    p_id: id,
+                    p_position: activePosition,
+                    p_question_text: question_text,
+                    p_order_index: order_index,
+                    p_min_words: min_words,
+                    p_is_required: is_required
+                });
+
+                if (error || !data || !data.success) {
+                    throw new Error(data?.error || error?.message || "Save failed");
+                }
+
+                closeQuestionModal();
+                showToast("Question saved successfully!");
+                await fetchQuestions();
+                renderPositionQuestions();
+            } catch (err) {
+                showToast(err.message, true);
+            }
+        }
+
+        async function deleteQuestion(id) {
+            try {
+                const { data, error } = await dbClient.rpc('admin_delete_question', {
+                    p_token: adminToken,
+                    p_id: id
+                });
+
+                if (error || !data || !data.success) {
+                    throw new Error(data?.error || error?.message || "Delete failed");
+                }
+
+                showToast("Question deleted successfully!");
+                await fetchQuestions();
+                renderPositionQuestions();
+            } catch (err) {
+                showToast(err.message, true);
+            }
+        }
+
+        async function savePositionSettings(e) {
+            e.preventDefault();
+            const enabled = document.getElementById('auto-role-enabled-toggle').checked ? 'true' : 'false';
+            const roleId = document.getElementById('auto-role-id-input').value.trim();
+
+            try {
+                await dbClient.rpc('admin_save_setting', {
+                    p_token: adminToken,
+                    p_key: `auto_role_enabled_${activePosition}`,
+                    p_value: enabled
+                });
+
+                await dbClient.rpc('admin_save_setting', {
+                    p_token: adminToken,
+                    p_key: `auto_role_id_${activePosition}`,
+                    p_value: roleId
+                });
+
+                await dbClient.rpc('admin_save_setting', {
+                    p_token: adminToken,
+                    p_key: 'auto_role_enabled',
+                    p_value: enabled
+                });
+
+                await dbClient.rpc('admin_save_setting', {
+                    p_token: adminToken,
+                    p_key: 'auto_role_id',
+                    p_value: roleId
+                });
+
+                showToast("Position auto-role settings saved!");
+                await fetchSettings();
+            } catch (err) {
+                showToast(err.message, true);
+            }
+        }
+
+        // --- Event Listeners ---
+        document.addEventListener('DOMContentLoaded', () => {
+            initAdminAuth();
+
+            document.getElementById('module-apps').onclick = () => navigateToStep(2);
+            document.getElementById('add-q-btn').onclick = () => openQuestionModal();
+            document.getElementById('q-modal-cancel').onclick = closeQuestionModal;
+            document.getElementById('question-form').onsubmit = saveQuestion;
+            document.getElementById('position-settings-form').onsubmit = savePositionSettings;
+
+            document.getElementById('delete-position-btn').onclick = () => {
+                deletePosition(activePosition, activePosition.toUpperCase());
+            };
+
+            // Custom Position Modal events
+            document.getElementById('create-custom-pos-btn').onclick = openCreatePositionModal;
+            document.getElementById('create-pos-cancel').onclick = closeCreatePositionModal;
+            document.getElementById('create-position-form').onsubmit = (e) => {
+                e.preventDefault();
+                const name = document.getElementById('new-pos-name').value.trim();
+                if (name) {
+                    closeCreatePositionModal();
+                    navigateToStep(3, name);
+                }
+            };
+        });
+    </script>
+</body>
+</html>

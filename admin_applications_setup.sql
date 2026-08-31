@@ -26,6 +26,14 @@ CREATE TABLE IF NOT EXISTS public.application_positions (
     created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
 );
 
+-- Position Auto Roles Table
+CREATE TABLE IF NOT EXISTS public.position_auto_roles (
+    position_name TEXT PRIMARY KEY REFERENCES public.application_positions(name) ON DELETE CASCADE,
+    auto_role_enabled BOOLEAN DEFAULT FALSE NOT NULL,
+    auto_role_id TEXT DEFAULT '' NOT NULL,
+    updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
+);
+
 -- Application Questions Table
 CREATE TABLE IF NOT EXISTS public.application_questions (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -49,11 +57,15 @@ CREATE TABLE IF NOT EXISTS public.application_settings (
 
 ALTER TABLE public.admin_sessions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.application_positions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.position_auto_roles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.application_questions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.application_settings ENABLE ROW LEVEL SECURITY;
 
--- Anonymous public read access for positions, questions & global settings
+-- Anonymous public read access for positions, auto roles, questions & global settings
 CREATE POLICY "Public read application positions" ON public.application_positions
+    FOR SELECT USING (true);
+
+CREATE POLICY "Public read position auto roles" ON public.position_auto_roles
     FOR SELECT USING (true);
 
 CREATE POLICY "Public read application questions" ON public.application_questions
@@ -173,6 +185,43 @@ BEGIN
 END;
 $$;
 
+-- Admin RPC: Save Position Auto Role
+CREATE OR REPLACE FUNCTION public.admin_save_position_auto_role(
+    p_token TEXT,
+    p_position_name TEXT,
+    p_auto_role_enabled BOOLEAN,
+    p_auto_role_id TEXT
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+BEGIN
+    IF NOT public.is_valid_admin_session(p_token) THEN
+        RETURN jsonb_build_object('success', false, 'error', 'Unauthorized admin session');
+    END IF;
+
+    INSERT INTO public.position_auto_roles (
+        position_name, auto_role_enabled, auto_role_id, updated_at
+    )
+    VALUES (
+        p_position_name, p_auto_role_enabled, p_auto_role_id, NOW()
+    )
+    ON CONFLICT (position_name) DO UPDATE
+    SET auto_role_enabled = EXCLUDED.auto_role_enabled,
+        auto_role_id = EXCLUDED.auto_role_id,
+        updated_at = NOW();
+
+    -- Also keep application_positions columns in sync
+    UPDATE public.application_positions
+    SET auto_role_enabled = p_auto_role_enabled,
+        auto_role_id = p_auto_role_id
+    WHERE name = p_position_name;
+
+    RETURN jsonb_build_object('success', true);
+END;
+$$;
+
 -- Admin RPC: Toggle Position Availability
 CREATE OR REPLACE FUNCTION public.admin_toggle_position_enabled(
     p_token TEXT,
@@ -211,6 +260,7 @@ BEGIN
     END IF;
 
     DELETE FROM public.application_questions WHERE position = p_position;
+    DELETE FROM public.position_auto_roles WHERE position_name = p_position;
     DELETE FROM public.application_positions WHERE name = p_position;
 
     RETURN jsonb_build_object('success', true);

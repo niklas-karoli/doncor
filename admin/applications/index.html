@@ -800,6 +800,7 @@
         let sessionExpiresAt = null;
         let sessionTimerInterval = null;
         let positionsData = [];
+        let autoRolesData = {};
         let questionsData = [];
         let settingsData = {};
         let currentStep = 1;
@@ -978,6 +979,7 @@
             };
 
             await fetchPositions();
+            await fetchAutoRoles();
             await fetchQuestions();
             await fetchSettings();
 
@@ -1069,6 +1071,23 @@
             }
         }
 
+        async function fetchAutoRoles() {
+            try {
+                const { data, error } = await dbClient
+                    .from('position_auto_roles')
+                    .select('*');
+
+                autoRolesData = {};
+                if (!error && data) {
+                    data.forEach(item => {
+                        autoRolesData[item.position_name.toLowerCase()] = item;
+                    });
+                }
+            } catch (err) {
+                autoRolesData = {};
+            }
+        }
+
         async function fetchQuestions() {
             try {
                 const { data, error } = await dbClient
@@ -1101,13 +1120,11 @@
 
         function getAllPositionsList() {
             const list = [...positionsData];
-            // Include default positions if not present
             DEFAULT_POSITIONS.forEach(dp => {
                 if (!list.some(p => p.name.toLowerCase() === dp.name.toLowerCase())) {
                     list.push(dp);
                 }
             });
-            // Include positions present in questions but not in list
             questionsData.forEach(q => {
                 if (q.position && !list.some(p => p.name.toLowerCase() === q.position.toLowerCase())) {
                     list.push({
@@ -1169,7 +1186,6 @@
                         });
 
                         if (error) {
-                            // Fallback to full save if toggle RPC is pending deployment
                             await dbClient.rpc('admin_save_position', {
                                 p_token: adminToken,
                                 p_name: pos.name,
@@ -1305,9 +1321,10 @@
             document.getElementById('editor-position-subtitle').textContent = `Manage application questions, order, and auto-role rules for ${activePosition}.`;
 
             const posObj = positionsData.find(p => p.name.toLowerCase() === activePosition.toLowerCase()) || {};
+            const autoRoleObj = autoRolesData[activePosition.toLowerCase()] || {};
 
-            const isEnabled = posObj.auto_role_enabled === true;
-            const roleId = posObj.auto_role_id || '';
+            const isEnabled = autoRoleObj.auto_role_enabled !== undefined ? autoRoleObj.auto_role_enabled : (posObj.auto_role_enabled === true);
+            const roleId = autoRoleObj.auto_role_id !== undefined ? autoRoleObj.auto_role_id : (posObj.auto_role_id || '');
 
             document.getElementById('auto-role-enabled-toggle').checked = isEnabled;
             document.getElementById('auto-role-id-input').value = roleId;
@@ -1528,20 +1545,29 @@
             };
 
             try {
-                const { data, error } = await dbClient.rpc('admin_save_position', {
+                const { data, error } = await dbClient.rpc('admin_save_position_auto_role', {
                     p_token: adminToken,
-                    p_name: posObj.name,
-                    p_display_order: posObj.display_order || 999,
-                    p_description: posObj.description || '',
-                    p_is_enabled: posObj.is_enabled !== false,
+                    p_position_name: posObj.name,
                     p_auto_role_enabled: enabled,
                     p_auto_role_id: roleId
                 });
 
-                if (error || !data || !data.success) throw new Error("Failed to save position auto-role settings");
+                if (error || !data || !data.success) {
+                    // Fallback to admin_save_position if admin_save_position_auto_role is pending
+                    await dbClient.rpc('admin_save_position', {
+                        p_token: adminToken,
+                        p_name: posObj.name,
+                        p_display_order: posObj.display_order || 999,
+                        p_description: posObj.description || '',
+                        p_is_enabled: posObj.is_enabled !== false,
+                        p_auto_role_enabled: enabled,
+                        p_auto_role_id: roleId
+                    });
+                }
 
                 showToast("Position auto-role settings saved!");
                 await fetchPositions();
+                await fetchAutoRoles();
             } catch (err) {
                 showToast(err.message, true);
             }

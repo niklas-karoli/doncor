@@ -788,17 +788,18 @@
         const ADMIN_SESSION_KEY = 'doncor_admin_token';
         const ADMIN_EXPIRY_KEY = 'doncor_admin_expires_at';
         const DEFAULT_POSITIONS = [
-            { id: 'Pilot', name: 'Pilot', desc: 'Flight operations and virtual pilot applications.' },
-            { id: 'Ground Crew', name: 'Ground Crew', desc: 'Airport operations and apron service team.' },
-            { id: 'Cabin Crew', name: 'Cabin Crew', desc: 'In-flight service and passenger experience.' },
-            { id: 'Human Resources', name: 'Human Resources', desc: 'Recruitment, staff management, and reviews.' },
-            { id: 'Flight Manager', name: 'Flight Manager', desc: 'Flight scheduling and ATC coordination.' },
-            { id: 'Airline Manager', name: 'Airline Manager', desc: 'Executive leadership and guild management.' }
+            { name: 'Pilot', display_order: 1, description: 'Flight operations and virtual pilot applications.', is_enabled: true, auto_role_enabled: false, auto_role_id: '' },
+            { name: 'Ground Crew', display_order: 2, description: 'Airport operations and apron service team.', is_enabled: true, auto_role_enabled: false, auto_role_id: '' },
+            { name: 'Cabin Crew', display_order: 3, description: 'In-flight service and passenger experience.', is_enabled: true, auto_role_enabled: false, auto_role_id: '' },
+            { name: 'Human Resources', display_order: 4, description: 'Recruitment, staff management, and reviews.', is_enabled: true, auto_role_enabled: false, auto_role_id: '' },
+            { name: 'Flight Manager', display_order: 5, description: 'Flight scheduling and ATC coordination.', is_enabled: true, auto_role_enabled: false, auto_role_id: '' },
+            { name: 'Airline Manager', display_order: 6, description: 'Executive leadership and guild management.', is_enabled: true, auto_role_enabled: false, auto_role_id: '' }
         ];
 
         let adminToken = null;
         let sessionExpiresAt = null;
         let sessionTimerInterval = null;
+        let positionsData = [];
         let questionsData = [];
         let settingsData = {};
         let currentStep = 1;
@@ -976,6 +977,7 @@
                 );
             };
 
+            await fetchPositions();
             await fetchQuestions();
             await fetchSettings();
 
@@ -1050,6 +1052,23 @@
         }
 
         // --- Data Fetching ---
+        async function fetchPositions() {
+            try {
+                const { data, error } = await dbClient
+                    .from('application_positions')
+                    .select('*')
+                    .order('display_order', { ascending: true });
+
+                if (!error && data) {
+                    positionsData = data;
+                } else {
+                    positionsData = [...DEFAULT_POSITIONS];
+                }
+            } catch (err) {
+                positionsData = [...DEFAULT_POSITIONS];
+            }
+        }
+
         async function fetchQuestions() {
             try {
                 const { data, error } = await dbClient
@@ -1080,6 +1099,30 @@
             }
         }
 
+        function getAllPositionsList() {
+            const list = [...positionsData];
+            // Include default positions if not present
+            DEFAULT_POSITIONS.forEach(dp => {
+                if (!list.some(p => p.name.toLowerCase() === dp.name.toLowerCase())) {
+                    list.push(dp);
+                }
+            });
+            // Include positions present in questions but not in list
+            questionsData.forEach(q => {
+                if (q.position && !list.some(p => p.name.toLowerCase() === q.position.toLowerCase())) {
+                    list.push({
+                        name: q.position,
+                        display_order: 999,
+                        description: 'Custom application position.',
+                        is_enabled: true,
+                        auto_role_enabled: false,
+                        auto_role_id: ''
+                    });
+                }
+            });
+            return list.sort((a, b) => (a.display_order || 999) - (b.display_order || 999));
+        }
+
         // --- Module 1: Recruitment Setup (Position Availability) ---
         function renderRecruitmentSetup() {
             const container = document.getElementById('recruitment-list-container');
@@ -1108,8 +1151,7 @@
                 item.appendChild(info);
 
                 // Switch for is_enabled
-                const key = `position_${pos.name}_enabled`;
-                const isEnabled = settingsData[key] !== 'false'; // Default open
+                const isEnabled = pos.is_enabled !== false;
 
                 const label = document.createElement('label');
                 label.className = 'switch';
@@ -1118,15 +1160,29 @@
                 input.type = 'checkbox';
                 input.checked = isEnabled;
                 input.onchange = async () => {
-                    const newVal = input.checked ? 'true' : 'false';
+                    const newStatus = input.checked;
                     try {
-                        await dbClient.rpc('admin_save_setting', {
+                        const { data, error } = await dbClient.rpc('admin_toggle_position_enabled', {
                             p_token: adminToken,
-                            p_key: key,
-                            p_value: newVal
+                            p_name: pos.name,
+                            p_is_enabled: newStatus
                         });
-                        settingsData[key] = newVal;
-                        showToast(`${pos.name} applications ${input.checked ? 'OPENED' : 'CLOSED'}`);
+
+                        if (error) {
+                            // Fallback to full save if toggle RPC is pending deployment
+                            await dbClient.rpc('admin_save_position', {
+                                p_token: adminToken,
+                                p_name: pos.name,
+                                p_display_order: pos.display_order || 999,
+                                p_description: pos.description || '',
+                                p_is_enabled: newStatus,
+                                p_auto_role_enabled: pos.auto_role_enabled || false,
+                                p_auto_role_id: pos.auto_role_id || ''
+                            });
+                        }
+
+                        pos.is_enabled = newStatus;
+                        showToast(`${pos.name} applications ${newStatus ? 'OPENED' : 'CLOSED'}`);
                     } catch (e) {
                         showToast("Failed to update recruitment status", true);
                         input.checked = !input.checked;
@@ -1142,22 +1198,6 @@
 
                 container.appendChild(item);
             });
-        }
-
-        function getAllPositionsList() {
-            const dbPositions = [...new Set(questionsData.map(q => q.position))];
-            const all = [...DEFAULT_POSITIONS];
-
-            dbPositions.forEach(dp => {
-                if (!all.some(p => p.name.toLowerCase() === dp.toLowerCase())) {
-                    all.push({
-                        id: dp,
-                        name: dp, // Exact casing
-                        desc: 'Custom application position.'
-                    });
-                }
-            });
-            return all;
         }
 
         // --- Step 2: Positions Grid & Custom Modals ---
@@ -1180,7 +1220,7 @@
                 info.appendChild(h4);
 
                 const p = document.createElement('p');
-                p.textContent = `${pos.desc} (${qCount} question${qCount === 1 ? '' : 's'})`;
+                p.textContent = `${pos.description || 'Application position.'} (${qCount} question${qCount === 1 ? '' : 's'})`;
                 info.appendChild(p);
 
                 card.appendChild(info);
@@ -1212,6 +1252,30 @@
             document.getElementById('create-position-modal').style.display = 'none';
         }
 
+        async function createNewPosition(name, desc) {
+            try {
+                const nextOrder = (positionsData.length || 0) + 1;
+                const { data, error } = await dbClient.rpc('admin_save_position', {
+                    p_token: adminToken,
+                    p_name: name,
+                    p_display_order: nextOrder,
+                    p_description: desc || 'Custom staff application position.',
+                    p_is_enabled: true,
+                    p_auto_role_enabled: false,
+                    p_auto_role_id: ''
+                });
+
+                if (error) throw error;
+
+                showToast(`Position '${name}' created successfully!`);
+                await fetchPositions();
+                closeCreatePositionModal();
+                navigateToStep(3, name);
+            } catch (e) {
+                showToast("Failed to create position", true);
+            }
+        }
+
         async function deletePosition(posName) {
             promptConfirm(
                 "Delete Position",
@@ -1223,6 +1287,7 @@
                             p_position: posName
                         });
                         showToast(`Position '${posName}' deleted successfully.`);
+                        await fetchPositions();
                         await fetchQuestions();
                         navigateToStep(2);
                     } catch (e) {
@@ -1239,8 +1304,10 @@
             document.getElementById('editor-position-title').textContent = `${activePosition} Editor`;
             document.getElementById('editor-position-subtitle').textContent = `Manage application questions, order, and auto-role rules for ${activePosition}.`;
 
-            const isEnabled = settingsData[`auto_role_enabled_${activePosition}`] === 'true' || settingsData['auto_role_enabled'] === 'true';
-            const roleId = settingsData[`auto_role_id_${activePosition}`] || settingsData['auto_role_id'] || '';
+            const posObj = positionsData.find(p => p.name.toLowerCase() === activePosition.toLowerCase()) || {};
+
+            const isEnabled = posObj.auto_role_enabled === true;
+            const roleId = posObj.auto_role_id || '';
 
             document.getElementById('auto-role-enabled-toggle').checked = isEnabled;
             document.getElementById('auto-role-id-input').value = roleId;
@@ -1453,36 +1520,28 @@
 
         async function savePositionSettings(e) {
             e.preventDefault();
-            const enabled = document.getElementById('auto-role-enabled-toggle').checked ? 'true' : 'false';
+            const enabled = document.getElementById('auto-role-enabled-toggle').checked;
             const roleId = document.getElementById('auto-role-id-input').value.trim();
 
+            const posObj = positionsData.find(p => p.name.toLowerCase() === activePosition.toLowerCase()) || {
+                name: activePosition, display_order: 999, description: 'Application position.', is_enabled: true
+            };
+
             try {
-                await dbClient.rpc('admin_save_setting', {
+                const { data, error } = await dbClient.rpc('admin_save_position', {
                     p_token: adminToken,
-                    p_key: `auto_role_enabled_${activePosition}`,
-                    p_value: enabled
+                    p_name: posObj.name,
+                    p_display_order: posObj.display_order || 999,
+                    p_description: posObj.description || '',
+                    p_is_enabled: posObj.is_enabled !== false,
+                    p_auto_role_enabled: enabled,
+                    p_auto_role_id: roleId
                 });
 
-                await dbClient.rpc('admin_save_setting', {
-                    p_token: adminToken,
-                    p_key: `auto_role_id_${activePosition}`,
-                    p_value: roleId
-                });
-
-                await dbClient.rpc('admin_save_setting', {
-                    p_token: adminToken,
-                    p_key: 'auto_role_enabled',
-                    p_value: enabled
-                });
-
-                await dbClient.rpc('admin_save_setting', {
-                    p_token: adminToken,
-                    p_key: 'auto_role_id',
-                    p_value: roleId
-                });
+                if (error || !data || !data.success) throw new Error("Failed to save position auto-role settings");
 
                 showToast("Position auto-role settings saved!");
-                await fetchSettings();
+                await fetchPositions();
             } catch (err) {
                 showToast(err.message, true);
             }
@@ -1510,9 +1569,9 @@
             document.getElementById('create-position-form').onsubmit = (e) => {
                 e.preventDefault();
                 const name = document.getElementById('new-pos-name').value.trim();
+                const desc = document.getElementById('new-pos-desc').value.trim();
                 if (name) {
-                    closeCreatePositionModal();
-                    navigateToStep(3, name); // Preserves exact string casing
+                    createNewPosition(name, desc);
                 }
             };
         });

@@ -15,10 +15,21 @@ CREATE TABLE IF NOT EXISTS public.admin_sessions (
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+-- Application Positions Table
+CREATE TABLE IF NOT EXISTS public.application_positions (
+    name TEXT PRIMARY KEY,
+    display_order INT DEFAULT 999 NOT NULL,
+    description TEXT DEFAULT '' NOT NULL,
+    is_enabled BOOLEAN DEFAULT TRUE NOT NULL,
+    auto_role_enabled BOOLEAN DEFAULT FALSE NOT NULL,
+    auto_role_id TEXT DEFAULT '' NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
+);
+
 -- Application Questions Table
 CREATE TABLE IF NOT EXISTS public.application_questions (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    position TEXT NOT NULL DEFAULT 'pilot',
+    position TEXT NOT NULL DEFAULT 'Pilot',
     question_text TEXT NOT NULL,
     order_index INTEGER NOT NULL DEFAULT 0,
     min_words INTEGER NOT NULL DEFAULT 0,
@@ -26,7 +37,7 @@ CREATE TABLE IF NOT EXISTS public.application_questions (
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
--- Application Settings Table (Key-Value Store)
+-- Application Settings Table (Global Key-Value Store for non-position settings)
 CREATE TABLE IF NOT EXISTS public.application_settings (
     key TEXT PRIMARY KEY,
     value TEXT NOT NULL,
@@ -37,10 +48,14 @@ CREATE TABLE IF NOT EXISTS public.application_settings (
 -- -----------------------------------------------------------------------------
 
 ALTER TABLE public.admin_sessions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.application_positions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.application_questions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.application_settings ENABLE ROW LEVEL SECURITY;
 
--- Anonymous public read access for application questions & settings
+-- Anonymous public read access for positions, questions & global settings
+CREATE POLICY "Public read application positions" ON public.application_positions
+    FOR SELECT USING (true);
+
 CREATE POLICY "Public read application questions" ON public.application_questions
     FOR SELECT USING (true);
 
@@ -75,12 +90,10 @@ BEGIN
     END IF;
 
     IF v_session.expires_at < now() THEN
-        -- Cleanup expired session
         DELETE FROM public.admin_sessions WHERE id = v_session.id;
         RETURN jsonb_build_object('success', false, 'error', 'Token has expired');
     END IF;
 
-    -- Mark token as used
     UPDATE public.admin_sessions
     SET used = true
     WHERE id = v_session.id;
@@ -88,7 +101,8 @@ BEGIN
     RETURN jsonb_build_object(
         'success', true,
         'token', v_session.token,
-        'discord_user_id', v_session.discord_user_id
+        'discord_user_id', v_session.discord_user_id,
+        'expires_at', v_session.expires_at
     );
 END;
 $$;
@@ -119,6 +133,86 @@ SECURITY DEFINER
 AS $$
 BEGIN
     DELETE FROM public.admin_sessions WHERE token = p_token;
+    RETURN jsonb_build_object('success', true);
+END;
+$$;
+
+-- Admin RPC: Upsert Application Position
+CREATE OR REPLACE FUNCTION public.admin_save_position(
+    p_token TEXT,
+    p_name TEXT,
+    p_display_order INT,
+    p_description TEXT,
+    p_is_enabled BOOLEAN,
+    p_auto_role_enabled BOOLEAN,
+    p_auto_role_id TEXT
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+BEGIN
+    IF NOT public.is_valid_admin_session(p_token) THEN
+        RETURN jsonb_build_object('success', false, 'error', 'Unauthorized admin session');
+    END IF;
+
+    INSERT INTO public.application_positions (
+        name, display_order, description, is_enabled, auto_role_enabled, auto_role_id
+    )
+    VALUES (
+        p_name, p_display_order, p_description, p_is_enabled, p_auto_role_enabled, p_auto_role_id
+    )
+    ON CONFLICT (name) DO UPDATE
+    SET display_order = EXCLUDED.display_order,
+        description = EXCLUDED.description,
+        is_enabled = EXCLUDED.is_enabled,
+        auto_role_enabled = EXCLUDED.auto_role_enabled,
+        auto_role_id = EXCLUDED.auto_role_id;
+
+    RETURN jsonb_build_object('success', true);
+END;
+$$;
+
+-- Admin RPC: Toggle Position Availability
+CREATE OR REPLACE FUNCTION public.admin_toggle_position_enabled(
+    p_token TEXT,
+    p_name TEXT,
+    p_is_enabled BOOLEAN
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+BEGIN
+    IF NOT public.is_valid_admin_session(p_token) THEN
+        RETURN jsonb_build_object('success', false, 'error', 'Unauthorized admin session');
+    END IF;
+
+    UPDATE public.application_positions
+    SET is_enabled = p_is_enabled
+    WHERE name = p_name;
+
+    RETURN jsonb_build_object('success', true);
+END;
+$$;
+
+-- Admin RPC: Delete Position
+CREATE OR REPLACE FUNCTION public.admin_delete_position(
+    p_token TEXT,
+    p_position TEXT
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+BEGIN
+    IF NOT public.is_valid_admin_session(p_token) THEN
+        RETURN jsonb_build_object('success', false, 'error', 'Unauthorized admin session');
+    END IF;
+
+    DELETE FROM public.application_questions WHERE position = p_position;
+    DELETE FROM public.application_positions WHERE name = p_position;
+
     RETURN jsonb_build_object('success', true);
 END;
 $$;
@@ -178,26 +272,7 @@ BEGIN
 END;
 $$;
 
--- Admin RPC: Delete All Questions for a Position
-CREATE OR REPLACE FUNCTION public.admin_delete_position(
-    p_token TEXT,
-    p_position TEXT
-)
-RETURNS JSONB
-LANGUAGE plpgsql
-SECURITY DEFINER
-AS $$
-BEGIN
-    IF NOT public.is_valid_admin_session(p_token) THEN
-        RETURN jsonb_build_object('success', false, 'error', 'Unauthorized admin session');
-    END IF;
-
-    DELETE FROM public.application_questions WHERE position = p_position;
-    RETURN jsonb_build_object('success', true);
-END;
-$$;
-
--- Admin RPC: Save Application Setting
+-- Admin RPC: Save Global Setting
 CREATE OR REPLACE FUNCTION public.admin_save_setting(
     p_token TEXT,
     p_key TEXT,

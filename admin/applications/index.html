@@ -203,6 +203,7 @@
             border: 1px solid rgba(255, 255, 255, 0.08);
             border-radius: 10px;
             padding: 24px;
+            cursor: pointer;
             transition: all 0.2s ease;
             display: flex;
             justify-content: space-between;
@@ -373,16 +374,8 @@
             padding: 2px 8px;
             border-radius: 4px;
             font-weight: 600;
-        }
-
-        .req-badge.required {
             background: rgba(255, 200, 0, 0.15);
             color: var(--accent-yellow);
-        }
-
-        .req-badge.optional {
-            background: rgba(255, 255, 255, 0.05);
-            color: var(--text-muted);
         }
 
         .words-badge {
@@ -473,19 +466,15 @@
             color: var(--text-muted);
         }
 
-        .checkbox-group {
+        .recruitment-item {
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 15px;
             display: flex;
             align-items: center;
-            gap: 10px;
-            margin-bottom: 18px;
-            cursor: pointer;
-        }
-
-        .checkbox-group input[type="checkbox"] {
-            width: 18px;
-            height: 18px;
-            accent-color: var(--accent-yellow);
-            cursor: pointer;
+            justify-content: space-between;
         }
     </style>
 </head>
@@ -562,6 +551,18 @@
                             <p>Configure staff application questions, word counts, positions, and auto-role assignments live.</p>
                         </div>
 
+                        <div class="module-card" id="module-recruitment">
+                            <span class="module-badge active">Active</span>
+                            <div class="module-icon">
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+                                    <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+                                </svg>
+                            </div>
+                            <h3>Recruitment Setup</h3>
+                            <p>Toggle staff position availability to instantly open or close applications for specific roles.</p>
+                        </div>
+
                         <div class="module-card disabled">
                             <span class="module-badge coming-soon">Coming Soon</span>
                             <div class="module-icon">
@@ -575,16 +576,24 @@
                             <h3>User Management</h3>
                             <p>Manage community pilot accounts, mileage balance adjustments, and tier ranks.</p>
                         </div>
+                    </div>
+                </div>
 
-                        <div class="module-card disabled">
-                            <span class="module-badge coming-soon">Coming Soon</span>
-                            <div class="module-icon">
-                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
-                                </svg>
-                            </div>
-                            <h3>Audit Logs & Metrics</h3>
-                            <p>View bot operation logs, administrative change history, and active application stats.</p>
+                <!-- RECRUITMENT SETUP VIEW -->
+                <div id="view-recruitment" class="step-view" style="display: none;">
+                    <div class="workspace-header">
+                        <div class="workspace-title">
+                            <h1>Recruitment Setup</h1>
+                            <p>Control position availability and toggle which application roles are currently open or closed.</p>
+                        </div>
+                    </div>
+
+                    <div class="editor-section-card">
+                        <h3>Position Availability Control</h3>
+                        <p class="subtitle">Enable or disable applications live for each staff role.</p>
+
+                        <div id="recruitment-list-container">
+                            <!-- Recruitment Toggles Inserted Here -->
                         </div>
                     </div>
                 </div>
@@ -647,7 +656,7 @@
                     <!-- Questions List Card -->
                     <div class="editor-section-card">
                         <h3>Application Questions</h3>
-                        <p class="subtitle">Reorder questions, set word limits, and mark mandatory requirements.</p>
+                        <p class="subtitle">Reorder questions and set word limits for this position.</p>
 
                         <div id="position-questions-container">
                             <!-- Questions Inserted Here -->
@@ -697,7 +706,7 @@
         </div>
     </div>
 
-    <!-- Question Add/Edit Modal (Auto Indexing on Creation) -->
+    <!-- Question Add/Edit Modal (Auto Indexing & Always Required) -->
     <div id="question-modal" class="modal-overlay">
         <div class="modal-content" style="max-width: 600px;">
             <div class="modal-hazard"></div>
@@ -716,11 +725,6 @@
                         <label for="q-min-words">Minimum Word Requirement</label>
                         <input type="number" id="q-min-words" class="number-input" min="0" value="0" required>
                     </div>
-
-                    <label class="checkbox-group">
-                        <input type="checkbox" id="q-required" checked>
-                        <span style="color: var(--white); font-size: 0.9rem;">Mark as Required Question</span>
-                    </label>
 
                     <div class="modal-actions" style="margin-top: 20px;">
                         <button type="button" id="q-modal-cancel" class="btn btn-outline btn-sm">Cancel</button>
@@ -754,19 +758,19 @@
         // Applications Admin Dashboard Controller
         const ADMIN_SESSION_KEY = 'doncor_admin_token';
         const DEFAULT_POSITIONS = [
-            { id: 'pilot', name: 'Pilot', desc: 'Flight operations and virtual pilot applications.' },
-            { id: 'ground crew', name: 'Ground Crew', desc: 'Airport operations and apron service team.' },
-            { id: 'cabin crew', name: 'Cabin Crew', desc: 'In-flight service and passenger experience.' },
-            { id: 'human resources', name: 'Human Resources', desc: 'Recruitment, staff management, and reviews.' },
-            { id: 'flight manager', name: 'Flight Manager', desc: 'Flight scheduling and ATC coordination.' },
-            { id: 'airline manager', name: 'Airline Manager', desc: 'Executive leadership and guild management.' }
+            { id: 'Pilot', name: 'Pilot', desc: 'Flight operations and virtual pilot applications.' },
+            { id: 'Ground Crew', name: 'Ground Crew', desc: 'Airport operations and apron service team.' },
+            { id: 'Cabin Crew', name: 'Cabin Crew', desc: 'In-flight service and passenger experience.' },
+            { id: 'Human Resources', name: 'Human Resources', desc: 'Recruitment, staff management, and reviews.' },
+            { id: 'Flight Manager', name: 'Flight Manager', desc: 'Flight scheduling and ATC coordination.' },
+            { id: 'Airline Manager', name: 'Airline Manager', desc: 'Executive leadership and guild management.' }
         ];
 
         let adminToken = null;
         let questionsData = [];
         let settingsData = {};
         let currentStep = 1;
-        let activePosition = null;
+        let activePosition = null; // Exact casing string
 
         // --- Toast Notifications ---
         function showToast(message, isError = false) {
@@ -896,16 +900,19 @@
             navigateToStep(1);
         }
 
-        // --- Navigation Flow (Steps 1, 2, 3) ---
-        function navigateToStep(step, positionId = null) {
+        // --- Navigation Flow ---
+        function navigateToStep(step, positionName = null) {
             currentStep = step;
-            if (positionId) activePosition = positionId.toLowerCase();
+            if (positionName) activePosition = positionName.trim(); // Exact casing
 
             document.querySelectorAll('.step-view').forEach(v => v.style.display = 'none');
             renderBreadcrumbs();
 
             if (step === 1) {
                 document.getElementById('view-step-1').style.display = 'block';
+            } else if (step === 'recruitment') {
+                renderRecruitmentSetup();
+                document.getElementById('view-recruitment').style.display = 'block';
             } else if (step === 2) {
                 renderPositionsGrid();
                 document.getElementById('view-step-2').style.display = 'block';
@@ -925,7 +932,17 @@
             homeSpan.onclick = () => navigateToStep(1);
             container.appendChild(homeSpan);
 
-            if (currentStep >= 2) {
+            if (currentStep === 'recruitment') {
+                const sep1 = document.createElement('span');
+                sep1.textContent = ' / ';
+                container.appendChild(sep1);
+
+                const recruitSpan = document.createElement('span');
+                recruitSpan.style.color = 'var(--white)';
+                recruitSpan.style.fontWeight = '700';
+                recruitSpan.textContent = 'Recruitment Setup';
+                container.appendChild(recruitSpan);
+            } else if (currentStep >= 2) {
                 const sep1 = document.createElement('span');
                 sep1.textContent = ' / ';
                 container.appendChild(sep1);
@@ -945,7 +962,7 @@
                 const currentCrumb = document.createElement('span');
                 currentCrumb.style.color = 'var(--white)';
                 currentCrumb.style.fontWeight = '700';
-                currentCrumb.textContent = activePosition.toUpperCase();
+                currentCrumb.textContent = activePosition;
                 container.appendChild(currentCrumb);
             }
         }
@@ -981,26 +998,95 @@
             }
         }
 
-        // --- Step 2: Positions Grid & Custom Modals ---
-        function renderPositionsGrid() {
-            const container = document.getElementById('positions-grid-container');
+        // --- Module 1: Recruitment Setup (Position Availability) ---
+        function renderRecruitmentSetup() {
+            const container = document.getElementById('recruitment-list-container');
             container.innerHTML = '';
 
-            const dbPositions = [...new Set(questionsData.map(q => q.position.toLowerCase()))];
-            const allPositions = [...DEFAULT_POSITIONS];
+            const allPositions = getAllPositionsList();
+
+            allPositions.forEach(pos => {
+                const item = document.createElement('div');
+                item.className = 'recruitment-item';
+
+                const info = document.createElement('div');
+                const title = document.createElement('strong');
+                title.style.color = 'var(--white)';
+                title.style.fontSize = '1.05rem';
+                title.textContent = pos.name;
+                info.appendChild(title);
+
+                const sub = document.createElement('p');
+                sub.style.color = 'var(--text-muted)';
+                sub.style.fontSize = '0.85rem';
+                sub.style.marginTop = '4px';
+                sub.textContent = `Control whether applications for ${pos.name} are open or closed.`;
+                info.appendChild(sub);
+
+                item.appendChild(info);
+
+                // Switch
+                const key = `position_${pos.name}_enabled`;
+                const isEnabled = settingsData[key] !== 'false'; // Default open
+
+                const label = document.createElement('label');
+                label.className = 'switch';
+
+                const input = document.createElement('input');
+                input.type = 'checkbox';
+                input.checked = isEnabled;
+                input.onchange = async () => {
+                    const newVal = input.checked ? 'true' : 'false';
+                    try {
+                        await dbClient.rpc('admin_save_setting', {
+                            p_token: adminToken,
+                            p_key: key,
+                            p_value: newVal
+                        });
+                        settingsData[key] = newVal;
+                        showToast(`${pos.name} applications ${input.checked ? 'OPENED' : 'CLOSED'}`);
+                    } catch (e) {
+                        showToast("Failed to update recruitment status", true);
+                        input.checked = !input.checked;
+                    }
+                };
+
+                const slider = document.createElement('span');
+                slider.className = 'slider';
+
+                label.appendChild(input);
+                label.appendChild(slider);
+                item.appendChild(label);
+
+                container.appendChild(item);
+            });
+        }
+
+        function getAllPositionsList() {
+            const dbPositions = [...new Set(questionsData.map(q => q.position))];
+            const all = [...DEFAULT_POSITIONS];
 
             dbPositions.forEach(dp => {
-                if (!allPositions.some(p => p.id === dp)) {
-                    allPositions.push({
+                if (!all.some(p => p.name.toLowerCase() === dp.toLowerCase())) {
+                    all.push({
                         id: dp,
-                        name: dp.toUpperCase(),
+                        name: dp, // Exact casing
                         desc: 'Custom application position.'
                     });
                 }
             });
+            return all;
+        }
+
+        // --- Step 2: Positions Grid ---
+        function renderPositionsGrid() {
+            const container = document.getElementById('positions-grid-container');
+            container.innerHTML = '';
+
+            const allPositions = getAllPositionsList();
 
             allPositions.forEach(pos => {
-                const qCount = questionsData.filter(q => q.position.toLowerCase() === pos.id).length;
+                const qCount = questionsData.filter(q => q.position.toLowerCase() === pos.name.toLowerCase()).length;
                 const card = document.createElement('div');
                 card.className = 'position-card';
 
@@ -1008,7 +1094,7 @@
                 info.className = 'position-info';
 
                 const h4 = document.createElement('h4');
-                h4.textContent = pos.name;
+                h4.textContent = pos.name; // Preserves exact casing
                 info.appendChild(h4);
 
                 const p = document.createElement('p');
@@ -1020,15 +1106,6 @@
                 const actions = document.createElement('div');
                 actions.className = 'position-actions';
 
-                const delBtn = document.createElement('button');
-                delBtn.className = 'btn-icon danger';
-                delBtn.textContent = 'Delete';
-                delBtn.onclick = (e) => {
-                    e.stopPropagation();
-                    deletePosition(pos.id, pos.name);
-                };
-                actions.appendChild(delBtn);
-
                 const arrow = document.createElement('div');
                 arrow.style.color = 'var(--accent-yellow)';
                 arrow.style.fontWeight = 'bold';
@@ -1038,7 +1115,7 @@
 
                 card.appendChild(actions);
 
-                card.onclick = () => navigateToStep(3, pos.id);
+                card.onclick = () => navigateToStep(3, pos.name);
                 container.appendChild(card);
             });
         }
@@ -1053,7 +1130,7 @@
             document.getElementById('create-position-modal').style.display = 'none';
         }
 
-        async function deletePosition(posId, posName) {
+        async function deletePosition(posName) {
             promptConfirm(
                 "Delete Position",
                 `Are you sure you want to completely delete '${posName}' and remove all its assigned questions?`,
@@ -1061,15 +1138,11 @@
                     try {
                         await dbClient.rpc('admin_delete_position', {
                             p_token: adminToken,
-                            p_position: posId
+                            p_position: posName
                         });
                         showToast(`Position '${posName}' deleted successfully.`);
                         await fetchQuestions();
-                        if (currentStep === 3 && activePosition === posId) {
-                            navigateToStep(2);
-                        } else if (currentStep === 2) {
-                            renderPositionsGrid();
-                        }
+                        navigateToStep(2);
                     } catch (e) {
                         showToast("Failed to delete position", true);
                     }
@@ -1081,7 +1154,7 @@
         function renderPositionEditor() {
             if (!activePosition) return;
 
-            document.getElementById('editor-position-title').textContent = `${activePosition.toUpperCase()} Editor`;
+            document.getElementById('editor-position-title').textContent = `${activePosition} Editor`;
             document.getElementById('editor-position-subtitle').textContent = `Manage application questions, order, and auto-role rules for ${activePosition}.`;
 
             const isEnabled = settingsData[`auto_role_enabled_${activePosition}`] === 'true' || settingsData['auto_role_enabled'] === 'true';
@@ -1096,7 +1169,7 @@
         function renderPositionQuestions() {
             const container = document.getElementById('position-questions-container');
             const filtered = questionsData
-                .filter(q => q.position.toLowerCase() === activePosition)
+                .filter(q => q.position.toLowerCase() === activePosition.toLowerCase())
                 .sort((a, b) => a.order_index - b.order_index);
 
             if (filtered.length === 0) {
@@ -1126,8 +1199,8 @@
                 meta.appendChild(wordsBadge);
 
                 const reqBadge = document.createElement('span');
-                reqBadge.className = `req-badge ${q.is_required ? 'required' : 'optional'}`;
-                reqBadge.textContent = q.is_required ? 'Required' : 'Optional';
+                reqBadge.className = 'req-badge required';
+                reqBadge.textContent = 'Required';
                 meta.appendChild(reqBadge);
 
                 main.appendChild(meta);
@@ -1192,13 +1265,13 @@
                 await dbClient.rpc('admin_save_question', {
                     p_token: adminToken, p_id: q1.id, p_position: q1.position,
                     p_question_text: q1.question_text, p_order_index: q1.order_index,
-                    p_min_words: q1.min_words, p_is_required: q1.is_required
+                    p_min_words: q1.min_words, p_is_required: true
                 });
 
                 await dbClient.rpc('admin_save_question', {
                     p_token: adminToken, p_id: q2.id, p_position: q2.position,
                     p_question_text: q2.question_text, p_order_index: q2.order_index,
-                    p_min_words: q2.min_words, p_is_required: q2.is_required
+                    p_min_words: q2.min_words, p_is_required: true
                 });
 
                 showToast("Question order updated!");
@@ -1209,7 +1282,7 @@
             }
         }
 
-        // --- Question CRUD Modal (Auto Indexing on Creation) ---
+        // --- Question CRUD Modal ---
         function openQuestionModal(question = null) {
             const modal = document.getElementById('question-modal');
             const title = document.getElementById('question-modal-title');
@@ -1220,13 +1293,11 @@
                 document.getElementById('q-id').value = question.id;
                 document.getElementById('q-text').value = question.question_text;
                 document.getElementById('q-min-words').value = question.min_words;
-                document.getElementById('q-required').checked = question.is_required;
             } else {
                 title.textContent = 'Add Application Question';
                 form.reset();
                 document.getElementById('q-id').value = '';
                 document.getElementById('q-min-words').value = 0;
-                document.getElementById('q-required').checked = true;
             }
 
             modal.style.display = 'flex';
@@ -1241,17 +1312,16 @@
             const id = document.getElementById('q-id').value || null;
             const question_text = document.getElementById('q-text').value.trim();
             const min_words = parseInt(document.getElementById('q-min-words').value) || 0;
-            const is_required = document.getElementById('q-required').checked;
 
             if (!question_text) return showToast("Question text cannot be empty", true);
 
-            // Auto-indexing logic: assign max + 1 for new questions
+            // Auto-indexing
             let order_index = 0;
             if (id) {
                 const existing = questionsData.find(q => q.id === id);
                 if (existing) order_index = existing.order_index;
             } else {
-                const posQuestions = questionsData.filter(q => q.position.toLowerCase() === activePosition);
+                const posQuestions = questionsData.filter(q => q.position.toLowerCase() === activePosition.toLowerCase());
                 const maxIndex = posQuestions.reduce((max, q) => q.order_index > max ? q.order_index : max, -1);
                 order_index = maxIndex + 1;
             }
@@ -1260,11 +1330,11 @@
                 const { data, error } = await dbClient.rpc('admin_save_question', {
                     p_token: adminToken,
                     p_id: id,
-                    p_position: activePosition,
+                    p_position: activePosition, // Preserves exact casing
                     p_question_text: question_text,
                     p_order_index: order_index,
                     p_min_words: min_words,
-                    p_is_required: is_required
+                    p_is_required: true // Always required
                 });
 
                 if (error || !data || !data.success) {
@@ -1341,16 +1411,18 @@
             initAdminAuth();
 
             document.getElementById('module-apps').onclick = () => navigateToStep(2);
+            document.getElementById('module-recruitment').onclick = () => navigateToStep('recruitment');
+
             document.getElementById('add-q-btn').onclick = () => openQuestionModal();
             document.getElementById('q-modal-cancel').onclick = closeQuestionModal;
             document.getElementById('question-form').onsubmit = saveQuestion;
             document.getElementById('position-settings-form').onsubmit = savePositionSettings;
 
             document.getElementById('delete-position-btn').onclick = () => {
-                deletePosition(activePosition, activePosition.toUpperCase());
+                deletePosition(activePosition);
             };
 
-            // Custom Position Modal events
+            // Custom Position Modal
             document.getElementById('create-custom-pos-btn').onclick = openCreatePositionModal;
             document.getElementById('create-pos-cancel').onclick = closeCreatePositionModal;
             document.getElementById('create-position-form').onsubmit = (e) => {
@@ -1358,7 +1430,7 @@
                 const name = document.getElementById('new-pos-name').value.trim();
                 if (name) {
                     closeCreatePositionModal();
-                    navigateToStep(3, name);
+                    navigateToStep(3, name); // Preserves exact string casing
                 }
             };
         });

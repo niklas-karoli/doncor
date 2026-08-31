@@ -203,7 +203,6 @@
             border: 1px solid rgba(255, 255, 255, 0.08);
             border-radius: 10px;
             padding: 24px;
-            cursor: pointer;
             transition: all 0.2s ease;
             display: flex;
             justify-content: space-between;
@@ -225,6 +224,12 @@
         .position-info p {
             color: var(--text-muted);
             font-size: 0.85rem;
+        }
+
+        .position-actions {
+            display: flex;
+            align-items: center;
+            gap: 10px;
         }
 
         /* Step 3: Editor Layout */
@@ -591,7 +596,7 @@
                             <h1>Select Staff Position</h1>
                             <p>Choose an application position to manage its questions and auto-role rules.</p>
                         </div>
-                        <button id="create-custom-pos-btn" class="btn btn-primary btn-sm">+ Add Custom Position</button>
+                        <button id="create-custom-pos-btn" class="btn btn-primary btn-sm">+ Add New Position / Role</button>
                     </div>
 
                     <div id="positions-grid-container" class="positions-grid">
@@ -607,7 +612,7 @@
                             <p id="editor-position-subtitle">Managing questions and configuration for this position.</p>
                         </div>
                         <div style="display: flex; gap: 10px;">
-                            <button id="delete-position-btn" class="btn btn-outline btn-sm" style="color: #ff4b4b; border-color: rgba(255,75,75,0.4);">Disable / Clear Position</button>
+                            <button id="delete-position-btn" class="btn btn-outline btn-sm danger" style="color: #ff4b4b; border-color: rgba(255,75,75,0.4);">Delete Position</button>
                             <button id="add-q-btn" class="btn btn-primary btn-sm">+ Add New Question</button>
                         </div>
                     </div>
@@ -642,7 +647,7 @@
                     <!-- Questions List Card -->
                     <div class="editor-section-card">
                         <h3>Application Questions</h3>
-                        <p class="subtitle">Drag or reorder questions, set word limits, and mark mandatory requirements.</p>
+                        <p class="subtitle">Reorder questions, set word limits, and mark mandatory requirements.</p>
 
                         <div id="position-questions-container">
                             <!-- Questions Inserted Here -->
@@ -665,7 +670,34 @@
         </footer>
     </div>
 
-    <!-- Question Add/Edit Modal -->
+    <!-- Create Custom Position Modal -->
+    <div id="create-position-modal" class="modal-overlay">
+        <div class="modal-content" style="max-width: 500px;">
+            <div class="modal-hazard"></div>
+            <div class="modal-body">
+                <h3>Add New Position / Role</h3>
+
+                <form id="create-position-form" style="padding-top: 15px;">
+                    <div class="form-group">
+                        <label for="new-pos-name">Position Name</label>
+                        <input type="text" id="new-pos-name" class="text-input" placeholder="e.g. Flight Attendant" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="new-pos-desc">Position Description (Optional)</label>
+                        <input type="text" id="new-pos-desc" class="text-input" placeholder="Short summary of duties...">
+                    </div>
+
+                    <div class="modal-actions" style="margin-top: 20px;">
+                        <button type="button" id="create-pos-cancel" class="btn btn-outline btn-sm">Cancel</button>
+                        <button type="submit" class="btn btn-primary btn-sm">Create Position</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Question Add/Edit Modal (Auto Indexing on Creation) -->
     <div id="question-modal" class="modal-overlay">
         <div class="modal-content" style="max-width: 600px;">
             <div class="modal-hazard"></div>
@@ -680,16 +712,9 @@
                         <textarea id="q-text" class="textarea-input" rows="3" placeholder="Enter the application question text..." required></textarea>
                     </div>
 
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
-                        <div class="form-group">
-                            <label for="q-order">Order Index</label>
-                            <input type="number" id="q-order" class="number-input" min="0" value="0" required>
-                        </div>
-
-                        <div class="form-group">
-                            <label for="q-min-words">Min Words</label>
-                            <input type="number" id="q-min-words" class="number-input" min="0" value="0" required>
-                        </div>
+                    <div class="form-group">
+                        <label for="q-min-words">Minimum Word Requirement</label>
+                        <input type="number" id="q-min-words" class="number-input" min="0" value="0" required>
                     </div>
 
                     <label class="checkbox-group">
@@ -868,7 +893,6 @@
             await fetchQuestions();
             await fetchSettings();
 
-            // Default to Step 1 Main Menu
             navigateToStep(1);
         }
 
@@ -957,12 +981,11 @@
             }
         }
 
-        // --- Step 2: Positions Grid ---
+        // --- Step 2: Positions Grid & Custom Modals ---
         function renderPositionsGrid() {
             const container = document.getElementById('positions-grid-container');
             container.innerHTML = '';
 
-            // Combine default positions with any custom positions present in DB questions
             const dbPositions = [...new Set(questionsData.map(q => q.position.toLowerCase()))];
             const allPositions = [...DEFAULT_POSITIONS];
 
@@ -994,15 +1017,64 @@
 
                 card.appendChild(info);
 
+                const actions = document.createElement('div');
+                actions.className = 'position-actions';
+
+                const delBtn = document.createElement('button');
+                delBtn.className = 'btn-icon danger';
+                delBtn.textContent = 'Delete';
+                delBtn.onclick = (e) => {
+                    e.stopPropagation();
+                    deletePosition(pos.id, pos.name);
+                };
+                actions.appendChild(delBtn);
+
                 const arrow = document.createElement('div');
                 arrow.style.color = 'var(--accent-yellow)';
                 arrow.style.fontWeight = 'bold';
+                arrow.style.marginLeft = '10px';
                 arrow.innerHTML = '&#8594;';
-                card.appendChild(arrow);
+                actions.appendChild(arrow);
+
+                card.appendChild(actions);
 
                 card.onclick = () => navigateToStep(3, pos.id);
                 container.appendChild(card);
             });
+        }
+
+        function openCreatePositionModal() {
+            const modal = document.getElementById('create-position-modal');
+            document.getElementById('create-position-form').reset();
+            modal.style.display = 'flex';
+        }
+
+        function closeCreatePositionModal() {
+            document.getElementById('create-position-modal').style.display = 'none';
+        }
+
+        async function deletePosition(posId, posName) {
+            promptConfirm(
+                "Delete Position",
+                `Are you sure you want to completely delete '${posName}' and remove all its assigned questions?`,
+                async () => {
+                    try {
+                        await dbClient.rpc('admin_delete_position', {
+                            p_token: adminToken,
+                            p_position: posId
+                        });
+                        showToast(`Position '${posName}' deleted successfully.`);
+                        await fetchQuestions();
+                        if (currentStep === 3 && activePosition === posId) {
+                            navigateToStep(2);
+                        } else if (currentStep === 2) {
+                            renderPositionsGrid();
+                        }
+                    } catch (e) {
+                        showToast("Failed to delete position", true);
+                    }
+                }
+            );
         }
 
         // --- Step 3: Position Application Editor ---
@@ -1012,7 +1084,6 @@
             document.getElementById('editor-position-title').textContent = `${activePosition.toUpperCase()} Editor`;
             document.getElementById('editor-position-subtitle').textContent = `Manage application questions, order, and auto-role rules for ${activePosition}.`;
 
-            // Auto-role settings
             const isEnabled = settingsData[`auto_role_enabled_${activePosition}`] === 'true' || settingsData['auto_role_enabled'] === 'true';
             const roleId = settingsData[`auto_role_id_${activePosition}`] || settingsData['auto_role_id'] || '';
 
@@ -1046,7 +1117,7 @@
 
                 const orderBadge = document.createElement('span');
                 orderBadge.className = 'order-badge';
-                orderBadge.textContent = `#${idx + 1} (Index: ${q.order_index})`;
+                orderBadge.textContent = `#${idx + 1} (Order: ${q.order_index})`;
                 meta.appendChild(orderBadge);
 
                 const wordsBadge = document.createElement('span');
@@ -1068,7 +1139,6 @@
 
                 card.appendChild(main);
 
-                // Actions: Move Up, Move Down, Edit, Delete
                 const actions = document.createElement('div');
                 actions.className = 'question-actions';
 
@@ -1139,7 +1209,7 @@
             }
         }
 
-        // --- Question CRUD Modal ---
+        // --- Question CRUD Modal (Auto Indexing on Creation) ---
         function openQuestionModal(question = null) {
             const modal = document.getElementById('question-modal');
             const title = document.getElementById('question-modal-title');
@@ -1149,15 +1219,12 @@
                 title.textContent = 'Edit Application Question';
                 document.getElementById('q-id').value = question.id;
                 document.getElementById('q-text').value = question.question_text;
-                document.getElementById('q-order').value = question.order_index;
                 document.getElementById('q-min-words').value = question.min_words;
                 document.getElementById('q-required').checked = question.is_required;
             } else {
                 title.textContent = 'Add Application Question';
                 form.reset();
                 document.getElementById('q-id').value = '';
-                const posQuestions = questionsData.filter(q => q.position.toLowerCase() === activePosition);
-                document.getElementById('q-order').value = posQuestions.length;
                 document.getElementById('q-min-words').value = 0;
                 document.getElementById('q-required').checked = true;
             }
@@ -1173,11 +1240,21 @@
             e.preventDefault();
             const id = document.getElementById('q-id').value || null;
             const question_text = document.getElementById('q-text').value.trim();
-            const order_index = parseInt(document.getElementById('q-order').value) || 0;
             const min_words = parseInt(document.getElementById('q-min-words').value) || 0;
             const is_required = document.getElementById('q-required').checked;
 
             if (!question_text) return showToast("Question text cannot be empty", true);
+
+            // Auto-indexing logic: assign max + 1 for new questions
+            let order_index = 0;
+            if (id) {
+                const existing = questionsData.find(q => q.id === id);
+                if (existing) order_index = existing.order_index;
+            } else {
+                const posQuestions = questionsData.filter(q => q.position.toLowerCase() === activePosition);
+                const maxIndex = posQuestions.reduce((max, q) => q.order_index > max ? q.order_index : max, -1);
+                order_index = maxIndex + 1;
+            }
 
             try {
                 const { data, error } = await dbClient.rpc('admin_save_question', {
@@ -1240,7 +1317,6 @@
                     p_value: roleId
                 });
 
-                // Also update global fallback keys for bot compatibility
                 await dbClient.rpc('admin_save_setting', {
                     p_token: adminToken,
                     p_key: 'auto_role_enabled',
@@ -1260,26 +1336,6 @@
             }
         }
 
-        async function disableOrClearPosition() {
-            promptConfirm(
-                "Disable Position Application",
-                `Are you sure you want to disable and clear all application questions for '${activePosition.toUpperCase()}'?`,
-                async () => {
-                    try {
-                        await dbClient.rpc('admin_delete_position', {
-                            p_token: adminToken,
-                            p_position: activePosition
-                        });
-                        showToast(`Position '${activePosition}' disabled and questions cleared.`);
-                        await fetchQuestions();
-                        navigateToStep(2);
-                    } catch (e) {
-                        showToast("Failed to clear position", true);
-                    }
-                }
-            );
-        }
-
         // --- Event Listeners ---
         document.addEventListener('DOMContentLoaded', () => {
             initAdminAuth();
@@ -1289,12 +1345,20 @@
             document.getElementById('q-modal-cancel').onclick = closeQuestionModal;
             document.getElementById('question-form').onsubmit = saveQuestion;
             document.getElementById('position-settings-form').onsubmit = savePositionSettings;
-            document.getElementById('delete-position-btn').onclick = disableOrClearPosition;
 
-            document.getElementById('create-custom-pos-btn').onclick = () => {
-                const name = prompt("Enter new position name (e.g. Flight Attendant):");
-                if (name && name.trim()) {
-                    navigateToStep(3, name.trim());
+            document.getElementById('delete-position-btn').onclick = () => {
+                deletePosition(activePosition, activePosition.toUpperCase());
+            };
+
+            // Custom Position Modal events
+            document.getElementById('create-custom-pos-btn').onclick = openCreatePositionModal;
+            document.getElementById('create-pos-cancel').onclick = closeCreatePositionModal;
+            document.getElementById('create-position-form').onsubmit = (e) => {
+                e.preventDefault();
+                const name = document.getElementById('new-pos-name').value.trim();
+                if (name) {
+                    closeCreatePositionModal();
+                    navigateToStep(3, name);
                 }
             };
         });
